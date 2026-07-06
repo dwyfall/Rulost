@@ -27,13 +27,12 @@
             width: 100vw;
             height: 100vh;
             background: #0d0d0d;
-            /* Center transformations for the map rotation framework */
-            transform-origin: center center;
         }
 
         /* 
            MINECRAFT STYLE MARKER:
-           Physically moves across the map layer while maintaining its own orientation matrix
+           A clean CSS triangle marker that anchors to your exact GPS position 
+           and moves freely across the map space.
         */
         .minecraft-marker-container {
             background: none !important;
@@ -195,12 +194,14 @@
 </head>
 <body>
 
+    <!-- Sidebar Access Trigger Button -->
     <button class="sidebar-trigger" id="menu-btn" onclick="toggleSidebar()">
         <div class="bar"></div>
         <div class="bar"></div>
         <div class="bar"></div>
     </button>
 
+    <!-- Side Menu Panel Drawer Container -->
     <div class="sidebar" id="sidebar-panel">
         <div class="sidebar-title">SYSTEM MODES</div>
         <div class="menu-group">
@@ -213,6 +214,7 @@
         </div>
     </div>
 
+    <!-- Raw Data Matrix HUD Header -->
     <div class="hud-header" id="data-hud">
         <div class="status-grid">
             <div class="hud-line"><span>POS:</span> <span class="latlng" id="coords">SEARCHING...</span></div>
@@ -225,7 +227,7 @@
 
     <script>
         // ============================================================
-        // MAP ENGINE SETUP
+        // MAP ENGINE SETUP (NORTH IS STABLE AND UP)
         // ============================================================
         const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; CARTO',
@@ -278,7 +280,7 @@
         const bearingEl = document.getElementById('bearing');
 
         // ============================================================
-        // POSITIONING ENGINE (Arrow moves across the map grid)
+        // POSITIONING & MOVEMENT ENGINE
         // ============================================================
         function updateLocation(lat, lng, accuracy = null) {
             coordsEl.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
@@ -286,6 +288,7 @@
                 accuracyEl.textContent = `±${Math.round(accuracy)}m`;
             }
             
+            // Check trail drawing distance threshold (5 meters)
             let appendNode = false;
             if (pathCoordinates.length === 0) {
                 appendNode = true;
@@ -302,6 +305,7 @@
                 if (flagShowTrail) trailPath.setLatLngs(pathCoordinates);
             }
             
+            // Render or move Accuracy Circle
             if (!accuracyCircle) {
                 accuracyCircle = L.circle([lat, lng], {
                     radius: accuracy || 0,
@@ -315,7 +319,7 @@
                 if (accuracy) accuracyCircle.setRadius(accuracy);
             }
 
-            // Move the arrow icon over the map grid seamlessly as you run
+            // CREATE OR MOVE MINECRAFT ARROW (Moves around over the layout coordinates)
             if (!playerMarker) {
                 const customIcon = L.divIcon({
                     className: 'minecraft-marker-container', 
@@ -329,12 +333,10 @@
                 playerMarker.setLatLng([lat, lng]);
             }
             
-            // Re-center map pane viewport on your new coordinate
-            map.panTo([lat, lng]);
-            
-            // Re-apply orientation vectors
-            applyRotationSystem();
+            // Rotate the arrow element to matching orientation heading
+            applyMarkerRotation();
 
+            // Setup camera frame instantly on first GPS stabilization
             if (isFirstLocation) {
                 map.setView([lat, lng], 17);
                 isFirstLocation = false;
@@ -342,22 +344,14 @@
         }
 
         // ============================================================
-        // ROTATION PIPELINE (Map rotates, and arrow tracks movement)
+        // ARROW ORIENTATION ROTATION
         // ============================================================
-        function applyRotationSystem() {
+        function applyMarkerRotation() {
             if (currentHeading === lastHeadingApplied) return;
             lastHeadingApplied = currentHeading;
 
             bearingEl.textContent = `${String(currentHeading).padStart(3, '0')}° ${getCompassLetter(currentHeading)}`;
             
-            // Dynamic map tile rotation matching your perspective
-            const mapPane = map.getPane('mapPane');
-            if (mapPane) {
-                mapPane.style.transformOrigin = "50% 50%";
-                mapPane.style.transform = `translate3d(0,0,0) rotate(${-currentHeading}deg)`;
-            }
-
-            // Spin the arrow independently inside the rotated layout structure
             const arrowElement = document.getElementById('arrow-element');
             if (arrowElement) {
                 arrowElement.style.transform = `rotate(${currentHeading}deg)`;
@@ -365,11 +359,13 @@
         }
 
         // ============================================================
-        // INTERFACE OPTIONS
+        // SYSTEM INTERACTIVE OPTIONS
         // ============================================================
         function toggleSidebar() {
-            document.getElementById('sidebar-panel').classList.toggle('open');
-            document.getElementById('menu-btn').classList.toggle('open');
+            const sidebar = document.getElementById('sidebar-panel');
+            const trigger = document.getElementById('menu-btn');
+            sidebar.classList.toggle('open');
+            trigger.classList.toggle('open');
         }
 
         function toggleOption(type) {
@@ -397,7 +393,7 @@
         }
 
         // ============================================================
-        // PHONE HARDWARE COMPASS INITIALIZATION
+        // REFRESH RATE SENSOR CHIPSET
         // ============================================================
         let frameThrottle = false;
         function handleOrientation(event) {
@@ -413,7 +409,7 @@
                 
                 if (!frameThrottle) {
                     window.requestAnimationFrame(() => {
-                        applyRotationSystem();
+                        applyMarkerRotation();
                         frameThrottle = false;
                     });
                     frameThrottle = true;
@@ -437,7 +433,7 @@
         }
 
         // ============================================================
-        // WAYPOINTS
+        // TACTICAL WAYPOINTS
         // ============================================================
         function createWaypointMarker(id, lat, lng) {
             const waypoint = L.circleMarker([lat, lng], {
