@@ -1,36 +1,499 @@
-// 1. Initialize the player marker globally (if not already done)
-let playerMarker = null;
-
-function updateLocation(lat, lng, accuracy) {
-    // ... your existing HUD updates ...
-
-    // 2. Make the arrow physically move across the map grid
-    if (!playerMarker) {
-        const customIcon = L.divIcon({
-            className: 'minecraft-marker-container', 
-            html: `<div class="minecraft-marker" id="arrow-element"><div class="minecraft-arrow"></div></div>`,
-            iconSize: [30, 30],
-            iconAnchor: [15, 15] 
-        });
-        
-        playerMarker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
-    } else {
-        // This physically moves the arrow in the direction you are walking
-        playerMarker.setLatLng([lat, lng]); 
-    }
-
-    // Keep your map panning logic centered on the user/session preference
-    map.panTo([lat, lng]);
-}
-
-// 3. Keep your map container rotating just like you had it
-function applyRotationSystem() {
-    // Your existing map container CSS rotation logic goes here:
-    // e.g., document.getElementById('map').style.transform = `rotate(${-currentHeading}deg)`;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Rulost Tactical Navigation System</title>
     
-    // AND spin the arrow relative to your heading if needed:
-    const arrowElement = document.getElementById('arrow-element');
-    if (arrowElement) {
-        arrowElement.style.transform = `rotate(${currentHeading}deg)`;
-    }
-}
+    <!-- Leaflet.js -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0d0d0d;
+            overflow: hidden;
+            height: 100vh;
+            color: #fff;
+        }
+        
+        #map {
+            width: 100vw;
+            height: 100vh;
+            background: #0d0d0d;
+            /* Center transformations for the map rotation framework */
+            transform-origin: center center;
+        }
+
+        /* 
+           MINECRAFT STYLE MARKER:
+           Physically moves across the map layer while maintaining its own orientation matrix
+        */
+        .minecraft-marker-container {
+            background: none !important;
+            border: none !important;
+        }
+        .minecraft-marker {
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transform-origin: center center;
+            will-change: transform;
+        }
+        .minecraft-arrow {
+            width: 0;
+            height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-bottom: 26px solid #00ffcc;
+            filter: drop-shadow(0px 0px 6px rgba(0, 255, 204, 0.9));
+        }
+        
+        /* Minimal Raw Data HUD Header */
+        .hud-header {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1999;
+            background: rgba(10, 15, 26, 0.9);
+            border: 1px solid #00ffcc;
+            box-shadow: 0 0 15px rgba(0, 255, 204, 0.2);
+            padding: 12px 20px;
+            border-radius: 8px;
+            pointer-events: none;
+            backdrop-filter: blur(6px);
+            width: 85%;
+            max-width: 400px;
+            transition: opacity 0.3s ease;
+        }
+        .status-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 4px;
+            font-size: 11px;
+            letter-spacing: 1px;
+        }
+        .hud-line {
+            display: flex;
+            justify-content: space-between;
+        }
+        .latlng { color: #7fff7f; font-weight: bold; }
+        .accuracy { color: #ffaa44; }
+        .bearing { color: #00ffcc; }
+
+        /* Sidebar Pull Menu Drawer */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: -280px; 
+            width: 280px;
+            height: 100vh;
+            background: rgba(10, 15, 26, 0.95);
+            border-right: 1px solid #00ffcc;
+            z-index: 2000;
+            transition: left 0.3s cubic-bezier(0.1, 0.9, 0.2, 1);
+            padding: 80px 20px 20px 20px;
+            box-shadow: 5px 0 25px rgba(0,0,0,0.5);
+            backdrop-filter: blur(8px);
+        }
+        .sidebar.open {
+            left: 0;
+        }
+        .sidebar-title {
+            font-size: 14px;
+            color: #00ffcc;
+            font-weight: bold;
+            border-bottom: 1px solid rgba(0, 255, 204, 0.3);
+            padding-bottom: 8px;
+            margin-bottom: 20px;
+            letter-spacing: 2px;
+        }
+        
+        /* Sidebar Controls */
+        .menu-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .menu-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(0, 255, 204, 0.4);
+            color: #fff;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 12px;
+            text-align: left;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .menu-btn.active {
+            border-color: #00ffcc;
+            background: rgba(0, 255, 204, 0.1);
+            color: #00ffcc;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+        }
+        .menu-btn.active .status-dot {
+            background: #00ffcc;
+            box-shadow: 0 0 8px #00ffcc;
+        }
+
+        /* Hamburger Drawer Icon */
+        .sidebar-trigger {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 2100;
+            background: rgba(10, 15, 26, 0.9);
+            border: 1px solid #00ffcc;
+            color: #00ffcc;
+            width: 42px;
+            height: 42px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+            box-shadow: 0 0 10px rgba(0, 255, 204, 0.2);
+        }
+        .bar {
+            width: 20px;
+            height: 2px;
+            background-color: #00ffcc;
+            transition: 0.3s;
+        }
+        .open .bar:nth-child(1) { transform: rotate(-45deg) translate(-5px, 5px); }
+        .open .bar:nth-child(2) { opacity: 0; }
+        .open .bar:nth-child(3) { transform: rotate(45deg) translate(-5px, -5px); }
+
+        .leaflet-control-layers {
+            background: #111 !important;
+            color: #fff !important;
+            border: 1px solid #444 !important;
+            font-family: monospace !important;
+        }
+    </style>
+</head>
+<body>
+
+    <button class="sidebar-trigger" id="menu-btn" onclick="toggleSidebar()">
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+    </button>
+
+    <div class="sidebar" id="sidebar-panel">
+        <div class="sidebar-title">SYSTEM MODES</div>
+        <div class="menu-group">
+            <button class="menu-btn active" id="opt-hud" onclick="toggleOption('hud')">
+                <span>SHOW RULOST HUD</span><div class="status-dot"></div>
+            </button>
+            <button class="menu-btn active" id="opt-trail" onclick="toggleOption('trail')">
+                <span>SHOW TRAILS</span><div class="status-dot"></div>
+            </button>
+        </div>
+    </div>
+
+    <div class="hud-header" id="data-hud">
+        <div class="status-grid">
+            <div class="hud-line"><span>POS:</span> <span class="latlng" id="coords">SEARCHING...</span></div>
+            <div class="hud-line"><span>SIG:</span> <span class="accuracy" id="accuracy">--</span></div>
+            <div class="hud-line"><span>HDG:</span> <span class="bearing" id="bearing">000° N</span></div>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <script>
+        // ============================================================
+        // MAP ENGINE SETUP
+        // ============================================================
+        const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; CARTO',
+            maxZoom: 20
+        });
+
+        const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: '&copy; Esri',
+            maxZoom: 19
+        });
+
+        const map = L.map('map', {
+            zoomControl: false, 
+            center: [0, 0],
+            zoom: 2,
+            preferCanvas: true,
+            layers: [streetLayer]
+        });
+
+        L.control.layers({ "🏙️ Tactical Map": streetLayer, "🛰️ Satellite HUD": satelliteLayer }, null, { position: 'topright' }).addTo(map);
+        
+        // ============================================================
+        // STATE INITIALIZATION
+        // ============================================================
+        let accuracyCircle = null;
+        let playerMarker = null; 
+        let isFirstLocation = true;
+        let currentHeading = 0; 
+        let lastHeadingApplied = -1;
+        
+        let flagShowHUD = true;
+        let flagShowTrail = true; 
+        
+        let pathCoordinates = [];
+        const trailPath = L.polyline([], {
+            color: '#00ffcc',
+            weight: 3,
+            opacity: 0.6,
+            dashArray: '4, 8',
+            smoothFactor: 1.5
+        }).addTo(map);
+
+        let savedWaypoints = []; 
+        try {
+            savedWaypoints = JSON.parse(localStorage.getItem('nav_waypoints')) || [];
+        } catch(e) { console.error(e); }
+
+        const coordsEl = document.getElementById('coords');
+        const accuracyEl = document.getElementById('accuracy');
+        const bearingEl = document.getElementById('bearing');
+
+        // ============================================================
+        // POSITIONING ENGINE (Arrow moves across the map grid)
+        // ============================================================
+        function updateLocation(lat, lng, accuracy = null) {
+            coordsEl.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            if (accuracy !== null) {
+                accuracyEl.textContent = `±${Math.round(accuracy)}m`;
+            }
+            
+            let appendNode = false;
+            if (pathCoordinates.length === 0) {
+                appendNode = true;
+            } else {
+                const lastPoint = L.latLng(pathCoordinates[pathCoordinates.length - 1]);
+                const currentPoint = L.latLng(lat, lng);
+                if (lastPoint.distanceTo(currentPoint) >= 5) {
+                    appendNode = true;
+                }
+            }
+
+            if (appendNode) {
+                pathCoordinates.push([lat, lng]);
+                if (flagShowTrail) trailPath.setLatLngs(pathCoordinates);
+            }
+            
+            if (!accuracyCircle) {
+                accuracyCircle = L.circle([lat, lng], {
+                    radius: accuracy || 0,
+                    color: '#00ffcc',
+                    fillColor: '#00ffcc',
+                    fillOpacity: 0.05,
+                    weight: 1
+                }).addTo(map);
+            } else {
+                accuracyCircle.setLatLng([lat, lng]);
+                if (accuracy) accuracyCircle.setRadius(accuracy);
+            }
+
+            // Move the arrow icon over the map grid seamlessly as you run
+            if (!playerMarker) {
+                const customIcon = L.divIcon({
+                    className: 'minecraft-marker-container', 
+                    html: `<div class="minecraft-marker" id="arrow-element"><div class="minecraft-arrow"></div></div>`,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15] 
+                });
+                
+                playerMarker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
+            } else {
+                playerMarker.setLatLng([lat, lng]);
+            }
+            
+            // Re-center map pane viewport on your new coordinate
+            map.panTo([lat, lng]);
+            
+            // Re-apply orientation vectors
+            applyRotationSystem();
+
+            if (isFirstLocation) {
+                map.setView([lat, lng], 17);
+                isFirstLocation = false;
+            }
+        }
+
+        // ============================================================
+        // ROTATION PIPELINE (Map rotates, and arrow tracks movement)
+        // ============================================================
+        function applyRotationSystem() {
+            if (currentHeading === lastHeadingApplied) return;
+            lastHeadingApplied = currentHeading;
+
+            bearingEl.textContent = `${String(currentHeading).padStart(3, '0')}° ${getCompassLetter(currentHeading)}`;
+            
+            // Dynamic map tile rotation matching your perspective
+            const mapPane = map.getPane('mapPane');
+            if (mapPane) {
+                mapPane.style.transformOrigin = "50% 50%";
+                mapPane.style.transform = `translate3d(0,0,0) rotate(${-currentHeading}deg)`;
+            }
+
+            // Spin the arrow independently inside the rotated layout structure
+            const arrowElement = document.getElementById('arrow-element');
+            if (arrowElement) {
+                arrowElement.style.transform = `rotate(${currentHeading}deg)`;
+            }
+        }
+
+        // ============================================================
+        // INTERFACE OPTIONS
+        // ============================================================
+        function toggleSidebar() {
+            document.getElementById('sidebar-panel').classList.toggle('open');
+            document.getElementById('menu-btn').classList.toggle('open');
+        }
+
+        function toggleOption(type) {
+            const btn = document.getElementById(`opt-${type}`);
+            if (type === 'hud') {
+                flagShowHUD = !flagShowHUD;
+                document.getElementById('data-hud').style.opacity = flagShowHUD ? "1" : "0";
+                btn.classList.toggle('active', flagShowHUD);
+            } 
+            else if (type === 'trail') {
+                flagShowTrail = !flagShowTrail;
+                if (flagShowTrail) {
+                    trailPath.setLatLngs(pathCoordinates);
+                } else {
+                    trailPath.setLatLngs([]);
+                }
+                btn.classList.toggle('active', flagShowTrail);
+            }
+        }
+
+        function getCompassLetter(deg) {
+            const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+            const index = Math.round(((deg % 360) / 45)) % 8;
+            return directions[index];
+        }
+
+        // ============================================================
+        // PHONE HARDWARE COMPASS INITIALIZATION
+        // ============================================================
+        let frameThrottle = false;
+        function handleOrientation(event) {
+            let heading = null;
+            if (event.webkitCompassHeading !== undefined) {
+                heading = event.webkitCompassHeading;
+            } else if (event.alpha !== null) {
+                heading = 360 - event.alpha; 
+            }
+            
+            if (heading !== null && heading !== undefined) {
+                currentHeading = Math.round(heading);
+                
+                if (!frameThrottle) {
+                    window.requestAnimationFrame(() => {
+                        applyRotationSystem();
+                        frameThrottle = false;
+                    });
+                    frameThrottle = true;
+                }
+            }
+        }
+
+        if (window.DeviceOrientationEvent) {
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                document.body.addEventListener('click', function() {
+                    DeviceOrientationEvent.requestPermission()
+                        .then(response => {
+                            if (response === 'granted') {
+                                window.addEventListener('deviceorientation', handleOrientation, true);
+                            }
+                        }).catch(console.error);
+                }, { once: true });
+            } else {
+                window.addEventListener('deviceorientation', handleOrientation, true);
+            }
+        }
+
+        // ============================================================
+        // WAYPOINTS
+        // ============================================================
+        function createWaypointMarker(id, lat, lng) {
+            const waypoint = L.circleMarker([lat, lng], {
+                radius: 7,
+                fillColor: '#ff3366', 
+                color: '#ffffff',
+                weight: 2,
+                fillOpacity: 0.9
+            }).addTo(map);
+            
+            const popupContent = document.createElement('div');
+            popupContent.innerHTML = `
+                <div style="font-family: monospace; text-align: center; color: #000;">
+                    <b>🚩 WAYPOINT LOCKED</b><br><br>
+                    <button id="del-${id}" style="background: #ff3366; color: white; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-family: monospace; font-weight: bold;">🗑️ DISMISS</button>
+                </div>
+            `;
+            waypoint.bindPopup(popupContent);
+            
+            function attachDeleteEvent() {
+                const deleteBtn = document.getElementById(`del-${id}`);
+                if (deleteBtn) {
+                    deleteBtn.onclick = function() {
+                        map.removeLayer(waypoint);
+                        savedWaypoints = savedWaypoints.filter(wp => wp.id !== id);
+                        localStorage.setItem('nav_waypoints', JSON.stringify(savedWaypoints));
+                    };
+                }
+            }
+            setTimeout(attachDeleteEvent, 50);
+            waypoint.on('popupopen', attachDeleteEvent);
+        }
+
+        map.on('click', function(e) {
+            if (e.originalEvent.target.classList.contains('leaflet-interactive')) return;
+            const clickedLat = e.latlng.lat;
+            const clickedLng = e.latlng.lng;
+            const waypointId = Date.now(); 
+            
+            createWaypointMarker(waypointId, clickedLat, clickedLng);
+            savedWaypoints.push({ id: waypointId, lat: clickedLat, lng: clickedLng });
+            localStorage.setItem('nav_waypoints', JSON.stringify(savedWaypoints));
+        });
+
+        savedWaypoints.forEach(wp => createWaypointMarker(wp.id, wp.lat, wp.lng));
+        
+        // ============================================================
+        // GEOLOCATION ENGINE
+        // ============================================================
+        if (navigator.geolocation) {
+            const success = pos => updateLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+            const error = err => { coordsEl.textContent = 'GPS BLOCKED'; };
+            navigator.geolocation.watchPosition(success, error, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+        } else {
+            coordsEl.textContent = 'NO GPS HARDWARE';
+        }
+    </script>
+</body>
+</html>
