@@ -40,7 +40,6 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            /* Force GPU rendering for butter-smooth rotation */
             transform-origin: center center;
             will-change: transform;
         }
@@ -250,7 +249,7 @@
         // STATE INITIALIZATION
         // ============================================================
         let accuracyCircle = null;
-        let playerMarker = null; // Our interactive Minecraft arrow instance
+        let playerMarker = null; 
         let isFirstLocation = true;
         let currentHeading = 0; 
         let lastHeadingApplied = -1;
@@ -318,12 +317,11 @@
 
             // CREATE OR MOVE MINECRAFT ARROW
             if (!playerMarker) {
-                // Generate a custom HTML container for the arrow marker
                 const customIcon = L.divIcon({
-                    className: 'minecraft-marker-container', // Blank out base styling
+                    className: 'minecraft-marker-container', 
                     html: `<div class="minecraft-marker" id="arrow-element"><div class="minecraft-arrow"></div></div>`,
                     iconSize: [30, 30],
-                    iconAnchor: [15, 15] // Center it exactly over the GPS point
+                    iconAnchor: [15, 15] 
                 });
                 
                 playerMarker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
@@ -334,8 +332,9 @@
             // Instantly rotate the arrow element to matching orientation heading
             applyMarkerRotation();
 
-            // Pan the map camera to stay centered over your arrow
-            map.panTo([lat, lng], { animate: isFirstLocation ? false : true, duration: 0.5 });
+            // MINECRAFT RE-CENTER TRACKING FIX:
+            // Instantly snaps map grid right beneath your active arrow placement coordinate
+            map.setView([lat, lng], map.getZoom(), { animate: false });
 
             if (isFirstLocation) {
                 map.setZoom(17);
@@ -352,10 +351,9 @@
 
             bearingEl.textContent = `${String(currentHeading).padStart(3, '0')}° ${getCompassLetter(currentHeading)}`;
             
-            // Grab the arrow element directly inside Leaflet's DOM layer
             const arrowElement = document.getElementById('arrow-element');
             if (arrowElement) {
-                // Rotates the arrow element directly without touching the map layout grid
+                // Rotates the arrow layer directly without touching the map layout grid
                 arrowElement.style.transform = `rotate(${currentHeading}deg)`;
             }
         }
