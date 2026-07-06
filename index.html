@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Rulost Tactical Navigation System</title>
     
-    <!-- Leaflet.js -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- MapLibre GL JS (High Performance WebGL Graphics Engine) -->
+    <script src="https://unpkg.com/maplibre-gl@4.5.0/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.5.0/dist/maplibre-gl.css" rel="stylesheet" />
     
     <style>
         * {
@@ -23,18 +23,16 @@
             color: #fff;
         }
         
-        /* Hardware accelerate the map layer so it rotates flawlessly on mobile */
         #map {
             width: 100vw;
             height: 100vh;
             background: #0d0d0d;
-            transform: translate3d(0, 0, 0);
-            will-change: transform;
         }
 
         /* 
-           FIXED SCREEN-CENTER ARROW:
-           Permanently points UP (0 degrees). The map moves and twists underneath it.
+           FIXED SCREEN HUD MARKER:
+           Locks directly into the center of the screen pointing straight up.
+           The WebGL map engine turns the world around it instantly.
         */
         .center-indicator {
             position: fixed;
@@ -91,7 +89,7 @@
         .accuracy { color: #ffaa44; }
         .bearing { color: #00ffcc; }
 
-        /* Sidebar Pull Menu Drawer */
+        /* Sidebar Menu Drawer */
         .sidebar {
             position: fixed;
             top: 0;
@@ -119,7 +117,6 @@
             letter-spacing: 2px;
         }
         
-        /* Sidebar Controls */
         .menu-group {
             display: flex;
             flex-direction: column;
@@ -185,25 +182,16 @@
         .open .bar:nth-child(1) { transform: rotate(-45deg) translate(-5px, 5px); }
         .open .bar:nth-child(2) { opacity: 0; }
         .open .bar:nth-child(3) { transform: rotate(45deg) translate(-5px, -5px); }
-
-        .leaflet-control-layers {
-            background: #111 !important;
-            color: #fff !important;
-            border: 1px solid #444 !important;
-            font-family: monospace !important;
-        }
     </style>
 </head>
 <body>
 
-    <!-- Sidebar Access Trigger Button -->
     <button class="sidebar-trigger" id="menu-btn" onclick="toggleSidebar()">
         <div class="bar"></div>
         <div class="bar"></div>
         <div class="bar"></div>
     </button>
 
-    <!-- Side Menu Panel Drawer Container -->
     <div class="sidebar" id="sidebar-panel">
         <div class="sidebar-title">SYSTEM MODES</div>
         <div class="menu-group">
@@ -216,7 +204,6 @@
         </div>
     </div>
 
-    <!-- Raw Data Matrix HUD Header -->
     <div class="hud-header" id="data-hud">
         <div class="status-grid">
             <div class="hud-line"><span>POS:</span> <span class="latlng" id="coords">SEARCHING...</span></div>
@@ -225,7 +212,7 @@
         </div>
     </div>
 
-    <!-- FIXED ARROW (Always points straight up, locked to center screen) -->
+    <!-- FIXED MINECRAFT HUD ARROW (Always looks straight forward) -->
     <div class="center-indicator">
         <div class="minecraft-arrow"></div>
     </div>
@@ -234,53 +221,46 @@
 
     <script>
         // ============================================================
-        // MAP ENGINE SETUP
+        // MAPLIBRE GL GRAPHICS ENGINE SETUP
         // ============================================================
-        const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; CARTO',
-            maxZoom: 20,
-            updateWhenIdle: true,
-            keepBuffer: 3
-        });
-
-        const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: '&copy; Esri',
-            maxZoom: 19,
-            updateWhenIdle: true,
-            keepBuffer: 3
-        });
-
-        const map = L.map('map', {
-            zoomControl: false, 
+        const map = new maplibregl.Map({
+            container: 'map',
+            dragRotate: false, // Prevent finger twisting from breaking orientation
+            pitchWithRotate: false,
+            style: {
+                'version': 8,
+                'sources': {
+                    'tactical-tiles': {
+                        'type': 'raster',
+                        'tiles': ['https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'],
+                        'tileSize': 256,
+                        'attribution': '&copy; CARTO'
+                    }
+                },
+                'layers': [
+                    {
+                        'id': 'base-layer',
+                        'type': 'raster',
+                        'source': 'tactical-tiles'
+                    }
+                ]
+            },
             center: [0, 0],
-            zoom: 2,
-            preferCanvas: true, // Speeds up trail path processing
-            layers: [streetLayer]
+            zoom: 2
         });
 
-        L.control.layers({ "🏙️ Tactical Map": streetLayer, "🛰️ Satellite HUD": satelliteLayer }, null, { position: 'topright' }).addTo(map);
-        
         // ============================================================
-        // STATE INITIALIZATION
+        // STATE DATA
         // ============================================================
-        let accuracyCircle = null;
         let isFirstLocation = true;
-        let currentHeading = 0; 
+        let currentHeading = 0;
         let lastHeadingApplied = -1;
         
         let flagShowHUD = true;
-        let flagShowTrail = true; 
+        let flagShowTrail = true;
         
         let pathCoordinates = [];
-        const trailPath = L.polyline([], {
-            color: '#00ffcc',
-            weight: 3,
-            opacity: 0.6,
-            dashArray: '4, 8',
-            smoothFactor: 2.0
-        }).addTo(map);
-
-        let savedWaypoints = []; 
+        let savedWaypoints = [];
         try {
             savedWaypoints = JSON.parse(localStorage.getItem('nav_waypoints')) || [];
         } catch(e) { console.error(e); }
@@ -289,109 +269,106 @@
         const accuracyEl = document.getElementById('accuracy');
         const bearingEl = document.getElementById('bearing');
 
+        // Wait for WebGL context to stabilize before appending vectors
+        map.on('load', () => {
+            // Setup Trail System Source
+            map.addSource('trail-source', {
+                'type': 'geojson',
+                'data': {
+                    'type': 'Feature',
+                    'properties': {},
+                    'geometry': {
+                        'type': 'LineString',
+                        'coordinates': []
+                    }
+                }
+            });
+
+            // Draw Trail Layer via GPU Pipeline
+            map.addLayer({
+                'id': 'trail-layer',
+                'type': 'line',
+                'source': 'trail-source',
+                'layout': {
+                    'line-join': 'round',
+                    'line-cap': 'round'
+                },
+                'paint': {
+                    'line-color': '#00ffcc',
+                    'line-width': 4,
+                    'line-dasharray': [2, 3],
+                    'line-opacity': 0.7
+                }
+            });
+
+            // Initialize saved waypoints
+            savedWaypoints.forEach(wp => drawWaypointNode(wp.id, wp.lng, wp.lat));
+        });
+
         // ============================================================
-        // POSITIONING & REAL-TIME SPEED HANDLING
+        // TRACKING & VELOCITY CAMERA LOCK PIPELINE
         // ============================================================
         function updateLocation(lat, lng, accuracy = null) {
             coordsEl.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
             if (accuracy !== null) {
                 accuracyEl.textContent = `±${Math.round(accuracy)}m`;
             }
-            
+
+            // Downsample path computations (5-meter thresholds)
             let appendNode = false;
             if (pathCoordinates.length === 0) {
                 appendNode = true;
             } else {
-                const lastPoint = L.latLng(pathCoordinates[pathCoordinates.length - 1]);
-                const currentPoint = L.latLng(lat, lng);
-                if (lastPoint.distanceTo(currentPoint) >= 5) {
+                const lastPoint = pathCoordinates[pathCoordinates.length - 1];
+                // Quick flat-plane distance check to drop processing overhead
+                const dx = lng - lastPoint[0];
+                const dy = lat - lastPoint[1];
+                if (Math.sqrt(dx*dx + dy*dy) > 0.00005) { // Roughly 5 meters
                     appendNode = true;
                 }
             }
 
             if (appendNode) {
-                pathCoordinates.push([lat, lng]);
-                if (flagShowTrail) trailPath.setLatLngs(pathCoordinates);
+                pathCoordinates.push([lng, lat]); // GeoJSON expects [lng, lat]
+                updateTrailRenderPipeline();
             }
-            
-            if (!accuracyCircle) {
-                accuracyCircle = L.circle([lat, lng], {
-                    radius: accuracy || 0,
-                    color: '#00ffcc',
-                    fillColor: '#00ffcc',
-                    fillOpacity: 0.05,
-                    weight: 1
-                }).addTo(map);
-            } else {
-                accuracyCircle.setLatLng([lat, lng]);
-                if (accuracy) accuracyCircle.setRadius(accuracy);
-            }
-            
-            // SNAPS CAMERA UNDER THE ARROW: Instant map update based on your running speed
-            map.setView([lat, lng], map.getZoom(), { animate: false });
-            
-            // Keeps layout rotation coordinates matched up perfectly
-            applyRotationSystem();
+
+            // NATIVE WEBGL CAMERA POSITION LOCK (Slides map smoothly based on your real-world speed)
+            map.setCenter([lng, lat]);
 
             if (isFirstLocation) {
-                map.setView([lat, lng], 17);
+                map.setZoom(17);
                 isFirstLocation = false;
             }
         }
 
+        function updateTrailRenderPipeline() {
+            if (!map.getSource('trail-source')) return;
+            map.getSource('trail-source').setData({
+                'type': 'Feature',
+                'properties': {},
+                'geometry': {
+                    'type': 'LineString',
+                    'coordinates': flagShowTrail ? pathCoordinates : []
+                }
+            });
+        }
+
         // ============================================================
-        // MAP CANVAS LAYER ROTATION ENGINE (MAP ROTATES, ARROW IS FIXED)
+        // NATIVE GPU MAP ROTATION MATRIX
         // ============================================================
         function applyRotationSystem() {
-            if (currentHeading === lastHeadingApplied) return; 
+            if (currentHeading === lastHeadingApplied) return;
             lastHeadingApplied = currentHeading;
 
             bearingEl.textContent = `${String(currentHeading).padStart(3, '0')}° ${getCompassLetter(currentHeading)}`;
             
-            const mapPane = map.getPane('mapPane');
-            if (mapPane) {
-                // Forces the world matrix beneath the arrow to spin seamlessly matching your heading direction
-                mapPane.style.transformOrigin = "50% 50%";
-                mapPane.style.transform = `translate3d(0,0,0) rotate(${-currentHeading}deg)`;
-            }
+            // Native GPU Bearing rotation. Rotates map map elements perfectly around center.
+            map.setBearing(360 - currentHeading);
         }
 
         // ============================================================
-        // INTERACTIVE OPTIONS
-        // ============================================================
-        function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar-panel');
-            const trigger = document.getElementById('menu-btn');
-            sidebar.classList.toggle('open');
-            trigger.classList.toggle('open');
-        }
-
-        function toggleOption(type) {
-            const btn = document.getElementById(`opt-${type}`);
-            if (type === 'hud') {
-                flagShowHUD = !flagShowHUD;
-                document.getElementById('data-hud').style.opacity = flagShowHUD ? "1" : "0";
-                btn.classList.toggle('active', flagShowHUD);
-            } 
-            else if (type === 'trail') {
-                flagShowTrail = !flagShowTrail;
-                if (flagShowTrail) {
-                    trailPath.setLatLngs(pathCoordinates);
-                } else {
-                    trailPath.setLatLngs([]);
-                }
-                btn.classList.toggle('active', flagShowTrail);
-            }
-        }
-
-        function getCompassLetter(deg) {
-            const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-            const index = Math.round(((deg % 360) / 45)) % 8;
-            return directions[index];
-        }
-
-        // ============================================================
-        // REFRESH RATE OPTIMIZER Ticks
+        // SENSOR LAYER INTERFACES
         // ============================================================
         let frameThrottle = false;
         function handleOrientation(event) {
@@ -399,7 +376,7 @@
             if (event.webkitCompassHeading !== undefined) {
                 heading = event.webkitCompassHeading;
             } else if (event.alpha !== null) {
-                heading = 360 - event.alpha; 
+                heading = 360 - event.alpha;
             }
             
             if (heading !== null && heading !== undefined) {
@@ -431,60 +408,93 @@
         }
 
         // ============================================================
-        // TACTICAL WAYPOINTS
+        // INTERACTIVE HUD CONTROLS
         // ============================================================
-        function createWaypointMarker(id, lat, lng) {
-            const waypoint = L.circleMarker([lat, lng], {
-                radius: 7,
-                fillColor: '#ff3366', 
-                color: '#ffffff',
-                weight: 2,
-                fillOpacity: 0.9
-            }).addTo(map);
-            
-            const popupContent = document.createElement('div');
-            popupContent.innerHTML = `
-                <div style="font-family: monospace; text-align: center; color: #000;">
-                    <b>🚩 WAYPOINT LOCKED</b><br><br>
-                    <button id="del-${id}" style="background: #ff3366; color: white; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-family: monospace; font-weight: bold;">🗑️ DISMISS</button>
-                </div>
-            `;
-            waypoint.bindPopup(popupContent);
-            
-            function attachDeleteEvent() {
-                const deleteBtn = document.getElementById(`del-${id}`);
-                if (deleteBtn) {
-                    deleteBtn.onclick = function() {
-                        map.removeLayer(waypoint);
-                        savedWaypoints = savedWaypoints.filter(wp => wp.id !== id);
-                        localStorage.setItem('nav_waypoints', JSON.stringify(savedWaypoints));
-                    };
-                }
-            }
-            setTimeout(attachDeleteEvent, 50);
-            waypoint.on('popupopen', attachDeleteEvent);
+        function toggleSidebar() {
+            document.getElementById('sidebar-panel').classList.toggle('open');
+            document.getElementById('menu-btn').classList.toggle('open');
         }
 
-        map.on('click', function(e) {
-            if (e.originalEvent.target.classList.contains('leaflet-interactive')) return;
-            const clickedLat = e.latlng.lat;
-            const clickedLng = e.latlng.lng;
-            const waypointId = Date.now(); 
+        function toggleOption(type) {
+            const btn = document.getElementById(`opt-${type}`);
+            if (type === 'hud') {
+                flagShowHUD = !flagShowHUD;
+                document.getElementById('data-hud').style.opacity = flagShowHUD ? "1" : "0";
+                btn.classList.toggle('active', flagShowHUD);
+            } 
+            else if (type === 'trail') {
+                flagShowTrail = !flagShowTrail;
+                updateTrailRenderPipeline();
+                btn.classList.toggle('active', flagShowTrail);
+            }
+        }
+
+        function getCompassLetter(deg) {
+            const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+            return directions[Math.round(((deg % 360) / 45)) % 8];
+        }
+
+        // ============================================================
+        // WAYPOINT SYSTEM CONTROLLER
+        // ============================================================
+        let waypointMarkersMap = {};
+
+        function drawWaypointNode(id, lng, lat) {
+            const el = document.createElement('div');
+            el.style.width = '14px';
+            el.style.height = '14px';
+            el.style.backgroundColor = '#ff3366';
+            el.style.borderRadius = '50%';
+            el.style.border = '2px solid #fff';
+            el.style.boxShadow = '0 0 8px #ff3366';
+            el.style.cursor = 'pointer';
+
+            const popup = new maplibregl.Popup({ offset: 10 }).setHTML(`
+                <div style="font-family: monospace; text-align: center; color: #000; padding: 5px;">
+                    <b>🚩 WAYPOINT LOCKED</b><br><br>
+                    <button onclick="dismissWaypoint(${id})" style="background: #ff3366; color: white; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-family: monospace; font-weight: bold;">🗑️ DISMISS</button>
+                </div>
+            `);
+
+            const marker = new maplibregl.Marker({ element: el })
+                .setLngLat([lng, lat])
+                .setPopup(popup)
+                .addTo(map);
+
+            waypointMarkersMap[id] = marker;
+        }
+
+        function dismissWaypoint(id) {
+            if (waypointMarkersMap[id]) {
+                waypointMarkersMap[id].remove();
+                delete waypointMarkersMap[id];
+            }
+            savedWaypoints = savedWaypoints.filter(wp => wp.id !== id);
+            localStorage.setItem('nav_waypoints', JSON.stringify(savedWaypoints));
+        }
+
+        map.on('click', (e) => {
+            // Stop waypoint placements if clicking on existing structural elements
+            if (e.originalEvent.target.style.backgroundColor === 'rgb(255, 51, 102)') return;
             
-            createWaypointMarker(waypointId, clickedLat, clickedLng);
-            savedWaypoints.push({ id: waypointId, lat: clickedLat, lng: clickedLng });
+            const lng = e.lngLat.lng;
+            const lat = e.lngLat.lat;
+            const id = Date.now();
+
+            drawWaypointNode(id, lng, lat);
+            savedWaypoints.push({ id, lng, lat });
             localStorage.setItem('nav_waypoints', JSON.stringify(savedWaypoints));
         });
 
-        savedWaypoints.forEach(wp => createWaypointMarker(wp.id, wp.lat, wp.lng));
-        
         // ============================================================
-        // GEOLOCATION ENGINE
+        // MOTOR ENGINE HARDWARE GEOLOCATION SOURCE
         // ============================================================
         if (navigator.geolocation) {
-            const success = pos => updateLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
-            const error = err => { coordsEl.textContent = 'GPS BLOCKED'; };
-            navigator.geolocation.watchPosition(success, error, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+            navigator.geolocation.watchPosition(
+                pos => updateLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
+                err => { coordsEl.textContent = 'GPS BLOCKED'; },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
         } else {
             coordsEl.textContent = 'NO GPS HARDWARE';
         }
