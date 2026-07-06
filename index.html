@@ -23,39 +23,34 @@
             color: #fff;
         }
         
-        /* Hardware accelerate the entire map viewport layer using the GPU */
         #map {
             width: 100vw;
             height: 100vh;
             background: #0d0d0d;
-            transform: translate3d(0, 0, 0);
-            will-change: transform;
         }
 
         /* 
-           PERMANENT FIXED OVERLAY ARROW:
-           Completely separated from Leaflet layout cycles to guarantee 0% performance loss.
+           MINECRAFT STYLE MARKER:
+           A clean CSS triangle marker that anchors to your exact GPS position 
+           and rotates smoothly on its center point.
         */
-        .center-indicator {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 9999; 
-            pointer-events: none; 
+        .minecraft-marker {
+            width: 30px;
+            height: 30px;
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 40px;
-            height: 40px;
+            /* Force GPU rendering for butter-smooth rotation */
+            transform-origin: center center;
+            will-change: transform;
         }
-        .compass-arrow {
+        .minecraft-arrow {
             width: 0;
             height: 0;
-            border-left: 12px solid transparent;
-            border-right: 12px solid transparent;
-            border-bottom: 30px solid #00ffcc;
-            filter: drop-shadow(0px 0px 8px rgba(0, 255, 204, 0.9));
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-bottom: 26px solid #00ffcc;
+            filter: drop-shadow(0px 0px 6px rgba(0, 255, 204, 0.9));
         }
         
         /* Minimal Raw Data HUD Header */
@@ -225,36 +220,27 @@
         </div>
     </div>
 
-    <!-- Fixed Screen Layer Arrow -->
-    <div class="center-indicator">
-        <div class="compass-arrow"></div>
-    </div>
-
     <div id="map"></div>
 
     <script>
         // ============================================================
-        // PERFORMANCE BOOST MAP ENGINE SETUP
+        // MAP ENGINE SETUP (NORTH IS ALWAYS LOCKED UP)
         // ============================================================
         const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; CARTO',
-            maxZoom: 20,
-            updateWhenIdle: true, // Speeds up loading by pausing layer renders during active pans
-            keepBuffer: 3         // Caches neighboring tiles ahead of time so rotation doesn't stutter
+            maxZoom: 20
         });
 
         const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             attribution: '&copy; Esri',
-            maxZoom: 19,
-            updateWhenIdle: true,
-            keepBuffer: 3
+            maxZoom: 19
         });
 
         const map = L.map('map', {
             zoomControl: false, 
             center: [0, 0],
             zoom: 2,
-            preferCanvas: true, // FORCE LEAFLET TO DRAW TRAILS VIA ULTRA-FAST CANVAS ENGINE INSTRUMENTS
+            preferCanvas: true,
             layers: [streetLayer]
         });
 
@@ -264,6 +250,7 @@
         // STATE INITIALIZATION
         // ============================================================
         let accuracyCircle = null;
+        let playerMarker = null; // Our interactive Minecraft arrow instance
         let isFirstLocation = true;
         let currentHeading = 0; 
         let lastHeadingApplied = -1;
@@ -277,7 +264,7 @@
             weight: 3,
             opacity: 0.6,
             dashArray: '4, 8',
-            smoothFactor: 2.0 // Blurs micro-points together to keep GPU draw calls incredibly light
+            smoothFactor: 1.5
         }).addTo(map);
 
         let savedWaypoints = []; 
@@ -290,7 +277,7 @@
         const bearingEl = document.getElementById('bearing');
 
         // ============================================================
-        // POSITIONING & DOWNSAMPLING LOGIC
+        // POSITIONING & MOVEMENT ENGINE
         // ============================================================
         function updateLocation(lat, lng, accuracy = null) {
             coordsEl.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
@@ -298,13 +285,13 @@
                 accuracyEl.textContent = `±${Math.round(accuracy)}m`;
             }
             
+            // Check trail drawing distance threshold (5 meters)
             let appendNode = false;
             if (pathCoordinates.length === 0) {
                 appendNode = true;
             } else {
                 const lastPoint = L.latLng(pathCoordinates[pathCoordinates.length - 1]);
                 const currentPoint = L.latLng(lat, lng);
-                // THE SPEED FIX: Only add points to the trail line if you've moved at least 5 meters.
                 if (lastPoint.distanceTo(currentPoint) >= 5) {
                     appendNode = true;
                 }
@@ -315,6 +302,7 @@
                 if (flagShowTrail) trailPath.setLatLngs(pathCoordinates);
             }
             
+            // Render or move Accuracy Circle
             if (!accuracyCircle) {
                 accuracyCircle = L.circle([lat, lng], {
                     radius: accuracy || 0,
@@ -327,18 +315,53 @@
                 accuracyCircle.setLatLng([lat, lng]);
                 if (accuracy) accuracyCircle.setRadius(accuracy);
             }
+
+            // CREATE OR MOVE MINECRAFT ARROW
+            if (!playerMarker) {
+                // Generate a custom HTML container for the arrow marker
+                const customIcon = L.divIcon({
+                    className: 'minecraft-marker-container', // Blank out base styling
+                    html: `<div class="minecraft-marker" id="arrow-element"><div class="minecraft-arrow"></div></div>`,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15] // Center it exactly over the GPS point
+                });
+                
+                playerMarker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
+            } else {
+                playerMarker.setLatLng([lat, lng]);
+            }
             
-            map.setView([lat, lng], map.getZoom(), { animate: false });
-            applyRotationSystem();
+            // Instantly rotate the arrow element to matching orientation heading
+            applyMarkerRotation();
+
+            // Pan the map camera to stay centered over your arrow
+            map.panTo([lat, lng], { animate: isFirstLocation ? false : true, duration: 0.5 });
 
             if (isFirstLocation) {
-                map.setView([lat, lng], 17);
+                map.setZoom(17);
                 isFirstLocation = false;
             }
         }
 
         // ============================================================
-        // INTERACTIVE SIDEBAR & OPTIONS
+        // INDEPENDENT MARKER ORIENTATION ROTATION (MINECRAFT STYLE)
+        // ============================================================
+        function applyMarkerRotation() {
+            if (currentHeading === lastHeadingApplied) return;
+            lastHeadingApplied = currentHeading;
+
+            bearingEl.textContent = `${String(currentHeading).padStart(3, '0')}° ${getCompassLetter(currentHeading)}`;
+            
+            // Grab the arrow element directly inside Leaflet's DOM layer
+            const arrowElement = document.getElementById('arrow-element');
+            if (arrowElement) {
+                // Rotates the arrow element directly without touching the map layout grid
+                arrowElement.style.transform = `rotate(${currentHeading}deg)`;
+            }
+        }
+
+        // ============================================================
+        // SYSTEM INTERACTIVE OPTIONS
         // ============================================================
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar-panel');
@@ -349,7 +372,6 @@
 
         function toggleOption(type) {
             const btn = document.getElementById(`opt-${type}`);
-            
             if (type === 'hud') {
                 flagShowHUD = !flagShowHUD;
                 document.getElementById('data-hud').style.opacity = flagShowHUD ? "1" : "0";
@@ -373,24 +395,7 @@
         }
 
         // ============================================================
-        // HIGH PERFORMANCE HARDWARE ACCELERATED ROTATION MATRIX
-        // ============================================================
-        function applyRotationSystem() {
-            if (currentHeading === lastHeadingApplied) return; // Drop redundant loops
-            lastHeadingApplied = currentHeading;
-
-            bearingEl.textContent = `${String(currentHeading).padStart(3, '0')}° ${getCompassLetter(currentHeading)}`;
-            
-            const mapPane = map.getPane('mapPane');
-            if (mapPane) {
-                // translate3d forces the phone's native graphics card chip (GPU) to draw the rotating map layers
-                mapPane.style.transformOrigin = "50% 50%";
-                mapPane.style.transform = `translate3d(0,0,0) rotate(${-currentHeading}deg)`;
-            }
-        }
-
-        // ============================================================
-        // HARDWARE REFRESH RATE OPTIMIZER
+        // REFRESH RATE SENSOR CHIPSET
         // ============================================================
         let frameThrottle = false;
         function handleOrientation(event) {
@@ -404,10 +409,9 @@
             if (heading !== null && heading !== undefined) {
                 currentHeading = Math.round(heading);
                 
-                // Uses animation frame sync ticks to match your phone screen refresh rate perfectly (60Hz/120Hz)
                 if (!frameThrottle) {
                     window.requestAnimationFrame(() => {
-                        applyRotationSystem();
+                        applyMarkerRotation();
                         frameThrottle = false;
                     });
                     frameThrottle = true;
