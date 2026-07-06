@@ -23,7 +23,7 @@
             color: #fff;
         }
         
-        /* Centered viewport scaling map container up to hide black corners */
+        /* Centered viewport layout scaling map up to hide black rotating corners */
         #map-viewport {
             position: absolute;
             top: 0;
@@ -43,13 +43,30 @@
         }
 
         /* 
-           THE ULTIMATE ARROW FIX: 
-           Leaflet internally tries to counter-rotate markers. We use !important 
-           to force the user-marker to ignore Leaflet and stay locked pointing straight up.
+           THE FIXED ARROW FIX:
+           We place the arrow completely outside the map layer. 
+           It is locked to the dead center of your phone screen and can never tilt or drift.
         */
-        .leaflet-marker-icon {
-            transform: rotate(0deg) !important;
-            transform-origin: center center !important;
+        .center-indicator {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000; 
+            pointer-events: none; /* Allows you to still click through it to drop waypoints */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+        }
+        .compass-arrow {
+            width: 0;
+            height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-bottom: 26px solid #00ffcc;
+            filter: drop-shadow(0px 0px 6px rgba(0, 255, 204, 0.8));
         }
         
         /* Minimal Raw Data HUD Header */
@@ -58,7 +75,7 @@
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            z-index: 999;
+            z-index: 1999;
             background: rgba(10, 15, 26, 0.9);
             border: 1px solid #00ffcc;
             box-shadow: 0 0 15px rgba(0, 255, 204, 0.2);
@@ -180,23 +197,6 @@
         .open .bar:nth-child(2) { opacity: 0; }
         .open .bar:nth-child(3) { transform: rotate(45deg) translate(-5px, -5px); }
 
-        /* THE COMPASS POINTER: Built facing up */
-        .compass-container {
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .compass-arrow {
-            width: 0;
-            height: 0;
-            border-left: 10px solid transparent;
-            border-right: 10px solid transparent;
-            border-bottom: 26px solid #00ffcc;
-            filter: drop-shadow(0px 0px 6px rgba(0, 255, 204, 0.8));
-        }
-
         .leaflet-control-layers {
             background: #111 !important;
             color: #fff !important;
@@ -236,6 +236,11 @@
         </div>
     </div>
 
+    <!-- Fixed Floating Screen Arrow Overlay Element -->
+    <div class="center-indicator">
+        <div class="compass-arrow"></div>
+    </div>
+
     <div id="map-viewport">
         <div id="map"></div>
     </div>
@@ -266,7 +271,6 @@
         // ============================================================
         // STATE INITIALIZATION
         // ============================================================
-        let userMarker = null;
         let accuracyCircle = null;
         let isFirstLocation = true;
         let currentHeading = 0; 
@@ -291,13 +295,6 @@
         const accuracyEl = document.getElementById('accuracy');
         const bearingEl = document.getElementById('bearing');
         const mapEl = document.getElementById('map');
-        
-        const arrowIcon = L.divIcon({
-            html: '<div class="compass-container"><div class="compass-arrow"></div></div>',
-            className: '', 
-            iconSize: [32, 32],
-            iconAnchor: [16, 16] 
-        });
 
         // ============================================================
         // POSITIONING LOGIC
@@ -321,26 +318,21 @@
                 if (flagShowTrail) trailPath.setLatLngs(pathCoordinates);
             }
             
-            if (!userMarker) {
-                userMarker = L.marker([lat, lng], { icon: arrowIcon }).addTo(map);
-                if (accuracy) {
-                    accuracyCircle = L.circle([lat, lng], {
-                        radius: accuracy,
-                        color: '#00ffcc',
-                        fillColor: '#00ffcc',
-                        fillOpacity: 0.08,
-                        weight: 1
-                    }).addTo(map);
-                }
+            // Handle accuracy visual ring natively inside the map canvas
+            if (!accuracyCircle) {
+                accuracyCircle = L.circle([lat, lng], {
+                    radius: accuracy || 0,
+                    color: '#00ffcc',
+                    fillColor: '#00ffcc',
+                    fillOpacity: 0.08,
+                    weight: 1
+                }).addTo(map);
             } else {
-                userMarker.setLatLng([lat, lng]);
-                if (accuracyCircle) {
-                    accuracyCircle.setLatLng([lat, lng]);
-                    if (accuracy) accuracyCircle.setRadius(accuracy);
-                }
+                accuracyCircle.setLatLng([lat, lng]);
+                if (accuracy) accuracyCircle.setRadius(accuracy);
             }
             
-            // Keep map frame locked onto user coordinates
+            // Keep map camera locked onto current coordinates
             map.setView([lat, lng], map.getZoom(), { animate: false });
             applyRotationSystem();
 
@@ -387,7 +379,7 @@
 
         function applyRotationSystem() {
             bearingEl.textContent = `${String(currentHeading).padStart(3, '0')}° ${getCompassLetter(currentHeading)}`;
-            // The whole map wrapper spins backward against your compass angle
+            // Whole map rotates cleanly in reverse, leaving your screen center pointer locked facing straight up
             mapEl.style.transform = `rotate(${-currentHeading}deg)`;
         }
 
