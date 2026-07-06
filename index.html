@@ -22,438 +22,19 @@
             height: 100vh;
             color: #fff;
         }
-        #map {
+        
+        /* Map Container and Smooth Map Rotation Animations */
+        #map-wrapper {
             width: 100%;
             height: 100vh;
-            background: #0d0d0d;
-        }
-        
-        /* Tactical HUD Header */
-        .hud-header {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1000;
-            background: rgba(10, 15, 26, 0.85);
-            border: 2px solid #00ffcc;
-            box-shadow: 0 0 15px rgba(0, 255, 204, 0.3);
-            padding: 10px 24px;
-            border-radius: 12px;
-            text-align: center;
-            pointer-events: none;
-            backdrop-filter: blur(6px);
-            width: 90%;
-            max-width: 450px;
-        }
-        .hud-title {
-            font-size: 14px;
-            font-weight: bold;
-            color: #00ffcc;
-            letter-spacing: 2px;
-            margin-bottom: 4px;
-            text-transform: uppercase;
-        }
-        .status-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            font-size: 11px;
-            border-top: 1px solid rgba(0, 255, 204, 0.2);
-            padding-top: 6px;
-            margin-top: 4px;
-        }
-        .latlng { color: #7fff7f; font-weight: bold; }
-        .accuracy { color: #ffaa44; }
-
-        /* Tactical Trail Toggle Button */
-        .trail-toggle-btn {
-            position: fixed;
-            top: 110px;
-            right: 20px;
-            z-index: 1000;
-            background: rgba(10, 15, 26, 0.9);
-            border: 1px solid #00ffcc;
-            color: #00ffcc;
-            padding: 8px 14px;
-            font-family: monospace;
-            font-size: 11px;
-            font-weight: bold;
-            text-transform: uppercase;
-            border-radius: 6px;
-            cursor: pointer;
-            box-shadow: 0 0 10px rgba(0, 255, 204, 0.2);
-            backdrop-filter: blur(4px);
-        }
-        .trail-toggle-btn.active {
-            background: #00ffcc;
-            color: #000;
-        }
-        
-        /* Marketing / App Teaser Panel */
-        .marketing-footer {
-            position: fixed;
-            bottom: 25px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1000;
-            width: 90%;
-            max-width: 400px;
-            background: rgba(13, 13, 13, 0.9);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 12px;
-            border-radius: 12px;
-            text-align: center;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.8);
-            backdrop-filter: blur(5px);
-        }
-        .marketing-footer p {
-            font-size: 11px;
-            color: #aaa;
-            margin-bottom: 8px;
-        }
-        .app-store-btn {
-            background: linear-gradient(135deg, #00ffcc, #0077ff);
-            color: #000;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
-            font-size: 12px;
-            font-family: monospace;
-            font-weight: bold;
-            cursor: pointer;
-            width: 100%;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            transition: transform 0.2s;
-            pointer-events: auto;
-        }
-        .app-store-btn:hover {
-            transform: scale(1.02);
-        }
-
-        /* COMPASS ARROW CSS ICON */
-        .compass-container {
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.1s ease-out;
-        }
-        .compass-arrow {
-            width: 0;
-            height: 0;
-            border-left: 10px solid transparent;
-            border-right: 10px solid transparent;
-            border-bottom: 26px solid #00ffcc;
-            filter: drop-shadow(0px 0px 6px rgba(0, 255, 204, 0.8));
-        }
-
-        .leaflet-control-layers {
-            background: #111 !important;
-            color: #fff !important;
-            border: 1px solid #444 !important;
-            font-family: monospace !important;
-        }
-    </style>
-</head>
-<body>
-
-    <!-- Tactical HUD Interface -->
-    <div class="hud-header">
-        <div class="hud-title" id="status-text">🛰️ HORIZON HUD // OS v0.1</div>
-        <div class="status-grid">
-            <div>POS: <span class="latlng" id="coords">SEARCHING...</span></div>
-            <div>SIG: <span class="accuracy" id="accuracy">--</span></div>
-        </div>
-    </div>
-
-    <!-- Trail HUD Button Control -->
-    <button class="trail-toggle-btn" id="trail-btn" onclick="toggleTrail()">Hide Trail</button>
-
-    <div id="map"></div>
-    
-    <!-- Marketing Panel -->
-    <div class="marketing-footer">
-        <p>🛸 Testing Web-Sandbox Framework (Rotate device to aim arrow).</p>
-        <button class="app-store-btn" onclick="alert('🚀 Thank you for your interest! The full AR Compass mobile app is currently in development. Your support helps bring this project to life!')">
-            Get Full Mobile App (Soon)
-        </button>
-    </div>
-
-    <script>
-        // ============================================================
-        // MAP ENGINE SETUP
-        // ============================================================
-        const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; CARTO',
-            subdomains: 'abcd',
-            maxZoom: 20
-        });
-
-        const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: '&copy; Esri',
-            maxZoom: 19
-        });
-
-        const map = L.map('map', {
-            zoomControl: false, 
-            center: [0, 0],
-            zoom: 2,
-            layers: [streetLayer]
-        });
-
-        L.control.layers({ "🏙️ Tactical Map": streetLayer, "🛰️ Satellite HUD": satelliteLayer }, null, { position: 'topright' }).addTo(map);
-        
-        // ============================================================
-        // POSITION & COMPASS VARIABLES
-        // ============================================================
-        let userMarker = null;
-        let accuracyCircle = null;
-        let isFirstLocation = true;
-        let currentHeading = 0; 
-        
-        // Trail State Mechanics
-        let showTrailLine = true; 
-        let pathCoordinates = [];
-        const trailPath = L.polyline([], {
-            color: '#00ffcc',
-            weight: 3,
-            opacity: 0.6,
-            dashArray: '4, 8' 
-        }).addTo(map);
-
-        let savedWaypoints = []; 
-        try {
-            savedWaypoints = JSON.parse(localStorage.getItem('nav_waypoints')) || [];
-        } catch(e) { console.error(e); }
-
-        const coordsEl = document.getElementById('coords');
-        const accuracyEl = document.getElementById('accuracy');
-        const statusTextEl = document.getElementById('status-text');
-        const trailBtnEl = document.getElementById('trail-btn');
-        
-        // Custom HTML Marker Config for Arrow
-        const arrowIcon = L.divIcon({
-            html: '<div class="compass-container" id="user-arrow"><div class="compass-arrow"></div></div>',
-            className: '', 
-            iconSize: [32, 32],
-            iconAnchor: [16, 16] 
-        });
-
-        function updateLocation(lat, lng, accuracy = null) {
-            coordsEl.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-            if (accuracy !== null) {
-                accuracyEl.textContent = `±${Math.round(accuracy)}m`;
-            }
-            
-            // CLEAN RE-TRACING PROTOCOL
-            // Only add a new coordinate if the user moves a reasonable distance from the last node (e.g. 2 meters)
-            let appendNode = true;
-            if (pathCoordinates.length > 0) {
-                const lastPoint = L.latLng(pathCoordinates[pathCoordinates.length - 1]);
-                const currentPoint = L.latLng(lat, lng);
-                const distance = lastPoint.distanceTo(currentPoint);
-                
-                // If the movement is less than 2 meters, don't record redundant layout steps
-                if (distance < 2) {
-                    appendNode = false;
-                }
-            }
-
-            if (appendNode) {
-                pathCoordinates.push([lat, lng]);
-                if (showTrailLine) {
-                    trailPath.setLatLngs(pathCoordinates);
-                }
-            }
-            
-            if (!userMarker) {
-                userMarker = L.marker([lat, lng], { icon: arrowIcon }).addTo(map);
-                
-                if (accuracy) {
-                    accuracyCircle = L.circle([lat, lng], {
-                        radius: accuracy,
-                        color: '#00ffcc',
-                        fillColor: '#00ffcc',
-                        fillOpacity: 0.08,
-                        weight: 1
-                    }).addTo(map);
-                }
-            } else {
-                userMarker.setLatLng([lat, lng]);
-                if (accuracyCircle) {
-                    accuracyCircle.setLatLng([lat, lng]);
-                    if (accuracy) accuracyCircle.setRadius(accuracy);
-                }
-            }
-            
-            applyRotation();
-
-            if (isFirstLocation) {
-                map.setView([lat, lng], 17);
-                statusTextEl.textContent = `🛰️ HORIZON HUD // LIVE`;
-                isFirstLocation = false;
-            }
-        }
-
-        // Dynamic Visibility Controller for Path Lines
-        function toggleTrail() {
-            showTrailLine = !showTrailLine;
-            if (showTrailLine) {
-                trailBtnEl.textContent = "Hide Trail";
-                trailBtnEl.classList.remove('active');
-                trailPath.setLatLngs(pathCoordinates); // Render path back onto layout
-            } else {
-                trailBtnEl.textContent = "Show Trail";
-                trailBtnEl.classList.add('active');
-                trailPath.setLatLngs([]); // Wipe line layout cleanly from view
-            }
-        }
-
-        function applyRotation() {
-            const arrowElement = document.getElementById('user-arrow');
-            if (arrowElement) {
-                arrowElement.style.transform = `rotate(${currentHeading}deg)`;
-            }
-        }
-
-        // ============================================================
-        // COMPASS SENSOR ENGINE (Device Orientation)
-        // ============================================================
-        function handleOrientation(event) {
-            let heading = event.webkitCompassHeading || (360 - event.alpha);
-            if (heading !== undefined && heading !== null) {
-                currentHeading = Math.round(heading);
-                applyRotation();
-            }
-        }
-
-        if (window.DeviceOrientationEvent) {
-            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                document.body.addEventListener('click', function() {
-                    DeviceOrientationEvent.requestPermission()
-                        .then(response => {
-                            if (response === 'granted') {
-                                window.addEventListener('deviceorientation', handleOrientation, true);
-                            }
-                        }).catch(console.error);
-                }, { once: true });
-            } else {
-                window.addEventListener('deviceorientation', handleOrientation, true);
-            }
-        }
-
-        // ============================================================
-        // TACTICAL WAYPOINT CONTROLLER
-        // ============================================================
-        function createWaypointMarker(id, lat, lng) {
-            const waypoint = L.circleMarker([lat, lng], {
-                radius: 7,
-                fillColor: '#ff3366', 
-                color: '#ffffff',
-                weight: 2,
-                fillOpacity: 0.9
-            }).addTo(map);
-            
-            const popupContent = document.createElement('div');
-            popupContent.innerHTML = `
-                <div style="font-family: monospace; text-align: center; color: #000;">
-                    <b>🚩 WAYPOINT LOCKED</b><br>
-                    <span style="font-size: 11px; color: #555;">
-                        ${lat.toFixed(5)}, ${lng.toFixed(5)}
-                    </span><br><br>
-                    <button id="del-${id}" style="
-                        background: #ff3366; 
-                        color: white; 
-                        border: none; 
-                        padding: 4px 12px; 
-                        border-radius: 4px; 
-                        cursor: pointer;
-                        font-family: monospace;
-                        font-weight: bold;
-                    ">🗑️ DISMISS</button>
-                </div>
-            `;
-
-            waypoint.bindPopup(popupContent);
-            
-            function attachDeleteEvent() {
-                const deleteBtn = document.getElementById(`del-${id}`);
-                if (deleteBtn) {
-                    deleteBtn.onclick = function() {
-                        map.removeLayer(waypoint);
-                        savedWaypoints = savedWaypoints.filter(wp => wp.id !== id);
-                        localStorage.setItem('nav_waypoints', JSON.stringify(savedWaypoints));
-                    };
-                }
-            }
-
-            setTimeout(attachDeleteEvent, 50);
-            waypoint.on('popupopen', attachDeleteEvent);
-        }
-
-        map.on('click', function(e) {
-            if (e.originalEvent.target.classList.contains('leaflet-interactive')) return;
-
-            const clickedLat = e.latlng.lat;
-            const clickedLng = e.latlng.lng;
-            const waypointId = Date.now(); 
-            
-            createWaypointMarker(waypointId, clickedLat, clickedLng);
-            savedWaypoints.push({ id: waypointId, lat: clickedLat, lng: clickedLng });
-            localStorage.setItem('nav_waypoints', JSON.stringify(savedWaypoints));
-        });
-
-        savedWaypoints.forEach(wp => createWaypointMarker(wp.id, wp.lat, wp.lng));
-        
-        // ============================================================
-        // CORE INITIALIZER
-        // ============================================================
-        if (navigator.geolocation) {
-            const success = pos => updateLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
-            const error = err => { coordsEl.textContent = 'GPS BLOCKED'; };
-            navigator.geolocation.watchPosition(success, error, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
-        } else {
-            coordsEl.textContent = 'NO GPS HARDWARE';
-        }
-        
-        document.addEventListener('keydown', function(e) {
-            if ((e.key === 'c' || e.key === 'C') && userMarker) {
-                map.setView(userMarker.getLatLng(), 17);
-            }
-        });
-    </script>
-</body>
-</html><!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Project Horizon - Next-Gen GPS HUD</title>
-    
-    <!-- Leaflet.js -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: 'Courier New', monospace;
-            background: #0d0d0d;
             overflow: hidden;
-            height: 100vh;
-            color: #fff;
+            background: #0d0d0d;
         }
         #map {
             width: 100%;
             height: 100vh;
             background: #0d0d0d;
+            transition: transform 0.1s linear; /* Keeps layout spinning smooth */
         }
         
         /* Tactical HUD Header */
@@ -494,12 +75,17 @@
         .latlng { color: #7fff7f; font-weight: bold; }
         .accuracy { color: #ffaa44; }
 
-        /* Tactical Trail Toggle Button */
-        .trail-toggle-btn {
+        /* Control Button Layout Group */
+        .hud-controls {
             position: fixed;
             top: 110px;
             right: 20px;
             z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .hud-btn {
             background: rgba(10, 15, 26, 0.9);
             border: 1px solid #00ffcc;
             color: #00ffcc;
@@ -512,8 +98,10 @@
             cursor: pointer;
             box-shadow: 0 0 10px rgba(0, 255, 204, 0.2);
             backdrop-filter: blur(4px);
+            text-align: center;
+            min-width: 120px;
         }
-        .trail-toggle-btn.active {
+        .hud-btn.active {
             background: #00ffcc;
             color: #000;
         }
@@ -556,9 +144,6 @@
             transition: transform 0.2s;
             pointer-events: auto;
         }
-        .app-store-btn:hover {
-            transform: scale(1.02);
-        }
 
         /* COMPASS ARROW CSS ICON */
         .compass-container {
@@ -567,7 +152,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: transform 0.1s ease-out;
+            transition: transform 0.1s linear;
         }
         .compass-arrow {
             width: 0;
@@ -597,15 +182,20 @@
         </div>
     </div>
 
-    <!-- Trail HUD Button Control -->
-    <button class="trail-toggle-btn" id="trail-btn" onclick="toggleTrail()">Hide Trail</button>
+    <!-- Interface Button Layout Group -->
+    <div class="hud-controls">
+        <button class="hud-btn" id="trail-btn" onclick="toggleTrail()">Hide Trail</button>
+        <button class="hud-btn" id="rotate-btn" onclick="toggleRotateMode()">Map: Fixed</button>
+    </div>
 
-    <div id="map"></div>
+    <div id="map-wrapper">
+        <div id="map"></div>
+    </div>
     
     <!-- Marketing Panel -->
     <div class="marketing-footer">
-        <p>🛸 Testing Web-Sandbox Framework (Rotate device to aim arrow).</p>
-        <button class="app-store-btn" onclick="alert('🚀 Thank you for your interest! The full AR Compass mobile app is currently in development. Your support helps bring this project to life!')">
+        <p>🛸 Sandbox Framework. Tap screen to unlock sensor access.</p>
+        <button class="app-store-btn" onclick="alert('🚀 Thank you for your interest! The full AR Compass mobile app is currently in development.')">
             Get Full Mobile App (Soon)
         </button>
     </div>
@@ -616,7 +206,6 @@
         // ============================================================
         const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; CARTO',
-            subdomains: 'abcd',
             maxZoom: 20
         });
 
@@ -635,15 +224,16 @@
         L.control.layers({ "🏙️ Tactical Map": streetLayer, "🛰️ Satellite HUD": satelliteLayer }, null, { position: 'topright' }).addTo(map);
         
         // ============================================================
-        // POSITION & COMPASS VARIABLES
+        // STATE ENGINE SYSTEM VARIABLES
         // ============================================================
         let userMarker = null;
         let accuracyCircle = null;
         let isFirstLocation = true;
         let currentHeading = 0; 
         
-        // Trail State Mechanics
         let showTrailLine = true; 
+        let rotateMapMode = false; // False = North Up; True = Heading Up (Map Rotates)
+        
         let pathCoordinates = [];
         const trailPath = L.polyline([], {
             color: '#00ffcc',
@@ -661,8 +251,9 @@
         const accuracyEl = document.getElementById('accuracy');
         const statusTextEl = document.getElementById('status-text');
         const trailBtnEl = document.getElementById('trail-btn');
+        const rotateBtnEl = document.getElementById('rotate-btn');
+        const mapEl = document.getElementById('map');
         
-        // Custom HTML Marker Config for Arrow
         const arrowIcon = L.divIcon({
             html: '<div class="compass-container" id="user-arrow"><div class="compass-arrow"></div></div>',
             className: '', 
@@ -676,30 +267,21 @@
                 accuracyEl.textContent = `±${Math.round(accuracy)}m`;
             }
             
-            // CLEAN RE-TRACING PROTOCOL
-            // Only add a new coordinate if the user moves a reasonable distance from the last node (e.g. 2 meters)
             let appendNode = true;
             if (pathCoordinates.length > 0) {
                 const lastPoint = L.latLng(pathCoordinates[pathCoordinates.length - 1]);
                 const currentPoint = L.latLng(lat, lng);
                 const distance = lastPoint.distanceTo(currentPoint);
-                
-                // If the movement is less than 2 meters, don't record redundant layout steps
-                if (distance < 2) {
-                    appendNode = false;
-                }
+                if (distance < 2) appendNode = false;
             }
 
             if (appendNode) {
                 pathCoordinates.push([lat, lng]);
-                if (showTrailLine) {
-                    trailPath.setLatLngs(pathCoordinates);
-                }
+                if (showTrailLine) trailPath.setLatLngs(pathCoordinates);
             }
             
             if (!userMarker) {
                 userMarker = L.marker([lat, lng], { icon: arrowIcon }).addTo(map);
-                
                 if (accuracy) {
                     accuracyCircle = L.circle([lat, lng], {
                         radius: accuracy,
@@ -717,7 +299,12 @@
                 }
             }
             
-            applyRotation();
+            // Recenter view continuously if map rotation tracking is enabled
+            if (rotateMapMode) {
+                map.setView([lat, lng], map.getZoom(), { animate: false });
+            }
+
+            applyRotationSystem();
 
             if (isFirstLocation) {
                 map.setView([lat, lng], 17);
@@ -726,24 +313,49 @@
             }
         }
 
-        // Dynamic Visibility Controller for Path Lines
+        // ============================================================
+        // TOGGLE ENGINE MECHANICS
+        // ============================================================
         function toggleTrail() {
             showTrailLine = !showTrailLine;
             if (showTrailLine) {
                 trailBtnEl.textContent = "Hide Trail";
                 trailBtnEl.classList.remove('active');
-                trailPath.setLatLngs(pathCoordinates); // Render path back onto layout
+                trailPath.setLatLngs(pathCoordinates);
             } else {
                 trailBtnEl.textContent = "Show Trail";
                 trailBtnEl.classList.add('active');
-                trailPath.setLatLngs([]); // Wipe line layout cleanly from view
+                trailPath.setLatLngs([]);
             }
         }
 
-        function applyRotation() {
+        function toggleRotateMode() {
+            rotateMapMode = !rotateMapMode;
+            if (rotateMapMode) {
+                rotateBtnEl.textContent = "Map: Rotate";
+                rotateBtnEl.classList.add('active');
+                if (userMarker) map.setView(userMarker.getLatLng(), map.getZoom(), { animate: false });
+            } else {
+                rotateBtnEl.textContent = "Map: Fixed";
+                rotateBtnEl.classList.remove('active');
+                // Reset map canvas back to true North instantly
+                mapEl.style.transform = `rotate(0deg)`;
+            }
+            applyRotationSystem();
+        }
+
+        // COORDINATOR: Decides whether arrow rotates OR map rotates
+        function applyRotationSystem() {
             const arrowElement = document.getElementById('user-arrow');
-            if (arrowElement) {
-                arrowElement.style.transform = `rotate(${currentHeading}deg)`;
+            
+            if (rotateMapMode) {
+                // Mode B: Arrow locks facing straight ahead (0deg), the structural map canvas spins in reverse
+                if (arrowElement) arrowElement.style.transform = `rotate(0deg)`;
+                mapEl.style.transform = `rotate(${-currentHeading}deg)`;
+            } else {
+                // Mode A: Map stays locked north (0deg), the pointer icon spins normally
+                mapEl.style.transform = `rotate(0deg)`;
+                if (arrowElement) arrowElement.style.transform = `rotate(${currentHeading}deg)`;
             }
         }
 
@@ -754,7 +366,7 @@
             let heading = event.webkitCompassHeading || (360 - event.alpha);
             if (heading !== undefined && heading !== null) {
                 currentHeading = Math.round(heading);
-                applyRotation();
+                applyRotationSystem();
             }
         }
 
@@ -788,23 +400,10 @@
             const popupContent = document.createElement('div');
             popupContent.innerHTML = `
                 <div style="font-family: monospace; text-align: center; color: #000;">
-                    <b>🚩 WAYPOINT LOCKED</b><br>
-                    <span style="font-size: 11px; color: #555;">
-                        ${lat.toFixed(5)}, ${lng.toFixed(5)}
-                    </span><br><br>
-                    <button id="del-${id}" style="
-                        background: #ff3366; 
-                        color: white; 
-                        border: none; 
-                        padding: 4px 12px; 
-                        border-radius: 4px; 
-                        cursor: pointer;
-                        font-family: monospace;
-                        font-weight: bold;
-                    ">🗑️ DISMISS</button>
+                    <b>🚩 WAYPOINT LOCKED</b><br><br>
+                    <button id="del-${id}" style="background: #ff3366; color: white; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-family: monospace; font-weight: bold;">🗑️ DISMISS</button>
                 </div>
             `;
-
             waypoint.bindPopup(popupContent);
             
             function attachDeleteEvent() {
@@ -817,14 +416,12 @@
                     };
                 }
             }
-
             setTimeout(attachDeleteEvent, 50);
             waypoint.on('popupopen', attachDeleteEvent);
         }
 
         map.on('click', function(e) {
             if (e.originalEvent.target.classList.contains('leaflet-interactive')) return;
-
             const clickedLat = e.latlng.lat;
             const clickedLng = e.latlng.lng;
             const waypointId = Date.now(); 
@@ -846,12 +443,6 @@
         } else {
             coordsEl.textContent = 'NO GPS HARDWARE';
         }
-        
-        document.addEventListener('keydown', function(e) {
-            if ((e.key === 'c' || e.key === 'C') && userMarker) {
-                map.setView(userMarker.getLatLng(), 17);
-            }
-        });
     </script>
 </body>
 </html>
