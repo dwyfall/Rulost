@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Project Horizon - Next-Gen GPS HUD</title>
+    <title>Rulost Tactical Navigation System</title>
     
     <!-- Leaflet.js -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -23,136 +23,163 @@
             color: #fff;
         }
         
-        /* Map Container and Smooth Map Rotation Animations */
-        #map-wrapper {
-            width: 100%;
+        /* 
+           THE FIX: We wrap the map in a centered viewport and scale it up to 150%. 
+           This pushes the ugly rotating corners completely offscreen!
+        */
+        #map-viewport {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
             height: 100vh;
             overflow: hidden;
-            background: #0d0d0d;
         }
         #map {
-            width: 100%;
-            height: 100vh;
+            position: absolute;
+            top: -25vh;
+            left: -25vw;
+            width: 150vw;
+            height: 150vh;
             background: #0d0d0d;
-            transition: transform 0.1s linear; /* Keeps layout spinning smooth */
+            transition: transform 0.1s linear;
         }
         
-        /* Tactical HUD Header */
+        /* Minimal Raw Data HUD Header */
         .hud-header {
             position: fixed;
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            z-index: 1000;
-            background: rgba(10, 15, 26, 0.85);
-            border: 2px solid #00ffcc;
-            box-shadow: 0 0 15px rgba(0, 255, 204, 0.3);
-            padding: 10px 24px;
-            border-radius: 12px;
-            text-align: center;
+            z-index: 999;
+            background: rgba(10, 15, 26, 0.9);
+            border: 1px solid #00ffcc;
+            box-shadow: 0 0 15px rgba(0, 255, 204, 0.2);
+            padding: 12px 20px;
+            border-radius: 8px;
             pointer-events: none;
             backdrop-filter: blur(6px);
-            width: 90%;
-            max-width: 450px;
-        }
-        .hud-title {
-            font-size: 14px;
-            font-weight: bold;
-            color: #00ffcc;
-            letter-spacing: 2px;
-            margin-bottom: 4px;
-            text-transform: uppercase;
+            width: 85%;
+            max-width: 400px;
+            transition: opacity 0.3s ease;
         }
         .status-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
+            grid-template-columns: 1fr;
+            gap: 4px;
             font-size: 11px;
-            border-top: 1px solid rgba(0, 255, 204, 0.2);
-            padding-top: 6px;
-            margin-top: 4px;
+            letter-spacing: 1px;
+        }
+        .hud-line {
+            display: flex;
+            justify-content: space-between;
         }
         .latlng { color: #7fff7f; font-weight: bold; }
         .accuracy { color: #ffaa44; }
+        .bearing { color: #00ffcc; }
 
-        /* Control Button Layout Group */
-        .hud-controls {
+        /* Sidebar Pull Menu Drawer */
+        .sidebar {
             position: fixed;
-            top: 110px;
-            right: 20px;
-            z-index: 1000;
+            top: 0;
+            left: -280px; 
+            width: 280px;
+            height: 100vh;
+            background: rgba(10, 15, 26, 0.95);
+            border-right: 1px solid #00ffcc;
+            z-index: 2000;
+            transition: left 0.3s cubic-bezier(0.1, 0.9, 0.2, 1);
+            padding: 80px 20px 20px 20px;
+            box-shadow: 5px 0 25px rgba(0,0,0,0.5);
+            backdrop-filter: blur(8px);
+        }
+        .sidebar.open {
+            left: 0;
+        }
+        .sidebar-title {
+            font-size: 14px;
+            color: #00ffcc;
+            font-weight: bold;
+            border-bottom: 1px solid rgba(0, 255, 204, 0.3);
+            padding-bottom: 8px;
+            margin-bottom: 20px;
+            letter-spacing: 2px;
+        }
+        
+        /* Sidebar Controls */
+        .menu-group {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 12px;
         }
-        .hud-btn {
+        .menu-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(0, 255, 204, 0.4);
+            color: #fff;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 12px;
+            text-align: left;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .menu-btn.active {
+            border-color: #00ffcc;
+            background: rgba(0, 255, 204, 0.1);
+            color: #00ffcc;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+        }
+        .menu-btn.active .status-dot {
+            background: #00ffcc;
+            box-shadow: 0 0 8px #00ffcc;
+        }
+
+        /* Hamburger Drawer Icon */
+        .sidebar-trigger {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 2100;
             background: rgba(10, 15, 26, 0.9);
             border: 1px solid #00ffcc;
             color: #00ffcc;
-            padding: 8px 14px;
-            font-family: monospace;
-            font-size: 11px;
-            font-weight: bold;
-            text-transform: uppercase;
+            width: 42px;
+            height: 42px;
             border-radius: 6px;
             cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
             box-shadow: 0 0 10px rgba(0, 255, 204, 0.2);
-            backdrop-filter: blur(4px);
-            text-align: center;
-            min-width: 120px;
         }
-        .hud-btn.active {
-            background: #00ffcc;
-            color: #000;
+        .bar {
+            width: 20px;
+            height: 2px;
+            background-color: #00ffcc;
+            transition: 0.3s;
         }
-        
-        /* Marketing / App Teaser Panel */
-        .marketing-footer {
-            position: fixed;
-            bottom: 25px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1000;
-            width: 90%;
-            max-width: 400px;
-            background: rgba(13, 13, 13, 0.9);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 12px;
-            border-radius: 12px;
-            text-align: center;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.8);
-            backdrop-filter: blur(5px);
-        }
-        .marketing-footer p {
-            font-size: 11px;
-            color: #aaa;
-            margin-bottom: 8px;
-        }
-        .app-store-btn {
-            background: linear-gradient(135deg, #00ffcc, #0077ff);
-            color: #000;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
-            font-size: 12px;
-            font-family: monospace;
-            font-weight: bold;
-            cursor: pointer;
-            width: 100%;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            transition: transform 0.2s;
-            pointer-events: auto;
-        }
+        .open .bar:nth-child(1) { transform: rotate(-45deg) translate(-5px, 5px); }
+        .open .bar:nth-child(2) { opacity: 0; }
+        .open .bar:nth-child(3) { transform: rotate(45deg) translate(-5px, -5px); }
 
-        /* COMPASS ARROW CSS ICON */
+        /* THE COMPASS POINTER: Fixed straight up, never rotates */
         .compass-container {
             width: 32px;
             height: 32px;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: transform 0.1s linear;
         }
         .compass-arrow {
             width: 0;
@@ -173,31 +200,37 @@
 </head>
 <body>
 
-    <!-- Tactical HUD Interface -->
-    <div class="hud-header">
-        <div class="hud-title" id="status-text">🛰️ HORIZON HUD // OS v0.1</div>
-        <div class="status-grid">
-            <div>POS: <span class="latlng" id="coords">SEARCHING...</span></div>
-            <div>SIG: <span class="accuracy" id="accuracy">--</span></div>
+    <!-- Sidebar Access Trigger Button -->
+    <button class="sidebar-trigger" id="menu-btn" onclick="toggleSidebar()">
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+    </button>
+
+    <!-- Side Menu Panel Drawer Container -->
+    <div class="sidebar" id="sidebar-panel">
+        <div class="sidebar-title">SYSTEM MODES</div>
+        <div class="menu-group">
+            <button class="menu-btn active" id="opt-hud" onclick="toggleOption('hud')">
+                <span>SHOW RULOST HUD</span><div class="status-dot"></div>
+            </button>
+            <button class="menu-btn active" id="opt-trail" onclick="toggleOption('trail')">
+                <span>SHOW TRAILS</span><div class="status-dot"></div>
+            </button>
         </div>
     </div>
 
-    <!-- Interface Button Layout Group -->
-    <div class="hud-controls">
-        <button class="hud-btn" id="trail-btn" onclick="toggleTrail()">Hide Trail</button>
-        <button class="hud-btn" id="rotate-btn" onclick="toggleRotateMode()">Map: Fixed</button>
+    <!-- Raw Data Matrix HUD Header -->
+    <div class="hud-header" id="data-hud">
+        <div class="status-grid">
+            <div class="hud-line"><span>POS:</span> <span class="latlng" id="coords">SEARCHING...</span></div>
+            <div class="hud-line"><span>SIG:</span> <span class="accuracy" id="accuracy">--</span></div>
+            <div class="hud-line"><span>HDG:</span> <span class="bearing" id="bearing">000° N</span></div>
+        </div>
     </div>
 
-    <div id="map-wrapper">
+    <div id="map-viewport">
         <div id="map"></div>
-    </div>
-    
-    <!-- Marketing Panel -->
-    <div class="marketing-footer">
-        <p>🛸 Sandbox Framework. Tap screen to unlock sensor access.</p>
-        <button class="app-store-btn" onclick="alert('🚀 Thank you for your interest! The full AR Compass mobile app is currently in development.')">
-            Get Full Mobile App (Soon)
-        </button>
     </div>
 
     <script>
@@ -224,15 +257,15 @@
         L.control.layers({ "🏙️ Tactical Map": streetLayer, "🛰️ Satellite HUD": satelliteLayer }, null, { position: 'topright' }).addTo(map);
         
         // ============================================================
-        // STATE ENGINE SYSTEM VARIABLES
+        // STATE INITIALIZATION
         // ============================================================
         let userMarker = null;
         let accuracyCircle = null;
         let isFirstLocation = true;
         let currentHeading = 0; 
         
-        let showTrailLine = true; 
-        let rotateMapMode = false; // False = North Up; True = Heading Up (Map Rotates)
+        let flagShowHUD = true;
+        let flagShowTrail = true; 
         
         let pathCoordinates = [];
         const trailPath = L.polyline([], {
@@ -249,18 +282,19 @@
 
         const coordsEl = document.getElementById('coords');
         const accuracyEl = document.getElementById('accuracy');
-        const statusTextEl = document.getElementById('status-text');
-        const trailBtnEl = document.getElementById('trail-btn');
-        const rotateBtnEl = document.getElementById('rotate-btn');
+        const bearingEl = document.getElementById('bearing');
         const mapEl = document.getElementById('map');
         
         const arrowIcon = L.divIcon({
-            html: '<div class="compass-container" id="user-arrow"><div class="compass-arrow"></div></div>',
+            html: '<div class="compass-container"><div class="compass-arrow"></div></div>',
             className: '', 
             iconSize: [32, 32],
             iconAnchor: [16, 16] 
         });
 
+        // ============================================================
+        // POSITIONING LOGIC
+        // ============================================================
         function updateLocation(lat, lng, accuracy = null) {
             coordsEl.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
             if (accuracy !== null) {
@@ -277,7 +311,7 @@
 
             if (appendNode) {
                 pathCoordinates.push([lat, lng]);
-                if (showTrailLine) trailPath.setLatLngs(pathCoordinates);
+                if (flagShowTrail) trailPath.setLatLngs(pathCoordinates);
             }
             
             if (!userMarker) {
@@ -299,72 +333,69 @@
                 }
             }
             
-            // Recenter view continuously if map rotation tracking is enabled
-            if (rotateMapMode) {
-                map.setView([lat, lng], map.getZoom(), { animate: false });
-            }
-
+            // Keep map frame locked onto user coordinates
+            map.setView([lat, lng], map.getZoom(), { animate: false });
             applyRotationSystem();
 
             if (isFirstLocation) {
                 map.setView([lat, lng], 17);
-                statusTextEl.textContent = `🛰️ HORIZON HUD // LIVE`;
                 isFirstLocation = false;
             }
         }
 
         // ============================================================
-        // TOGGLE ENGINE MECHANICS
+        // INTERACTIVE SIDEBAR & OPTIONS
         // ============================================================
-        function toggleTrail() {
-            showTrailLine = !showTrailLine;
-            if (showTrailLine) {
-                trailBtnEl.textContent = "Hide Trail";
-                trailBtnEl.classList.remove('active');
-                trailPath.setLatLngs(pathCoordinates);
-            } else {
-                trailBtnEl.textContent = "Show Trail";
-                trailBtnEl.classList.add('active');
-                trailPath.setLatLngs([]);
-            }
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar-panel');
+            const trigger = document.getElementById('menu-btn');
+            sidebar.classList.toggle('open');
+            trigger.classList.toggle('open');
         }
 
-        function toggleRotateMode() {
-            rotateMapMode = !rotateMapMode;
-            if (rotateMapMode) {
-                rotateBtnEl.textContent = "Map: Rotate";
-                rotateBtnEl.classList.add('active');
-                if (userMarker) map.setView(userMarker.getLatLng(), map.getZoom(), { animate: false });
-            } else {
-                rotateBtnEl.textContent = "Map: Fixed";
-                rotateBtnEl.classList.remove('active');
-                // Reset map canvas back to true North instantly
-                mapEl.style.transform = `rotate(0deg)`;
-            }
-            applyRotationSystem();
-        }
-
-        // COORDINATOR: Decides whether arrow rotates OR map rotates
-        function applyRotationSystem() {
-            const arrowElement = document.getElementById('user-arrow');
+        function toggleOption(type) {
+            const btn = document.getElementById(`opt-${type}`);
             
-            if (rotateMapMode) {
-                // Mode B: Arrow locks facing straight ahead (0deg), the structural map canvas spins in reverse
-                if (arrowElement) arrowElement.style.transform = `rotate(0deg)`;
-                mapEl.style.transform = `rotate(${-currentHeading}deg)`;
-            } else {
-                // Mode A: Map stays locked north (0deg), the pointer icon spins normally
-                mapEl.style.transform = `rotate(0deg)`;
-                if (arrowElement) arrowElement.style.transform = `rotate(${currentHeading}deg)`;
+            if (type === 'hud') {
+                flagShowHUD = !flagShowHUD;
+                document.getElementById('data-hud').style.opacity = flagShowHUD ? "1" : "0";
+                btn.classList.toggle('active', flagShowHUD);
+            } 
+            else if (type === 'trail') {
+                flagShowTrail = !flagShowTrail;
+                if (flagShowTrail) {
+                    trailPath.setLatLngs(pathCoordinates);
+                } else {
+                    trailPath.setLatLngs([]);
+                }
+                btn.classList.toggle('active', flagShowTrail);
             }
         }
 
+        function getCompassLetter(deg) {
+            const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+            const index = Math.round(((deg % 360) / 45)) % 8;
+            return directions[index];
+        }
+
+        function applyRotationSystem() {
+            bearingEl.textContent = `${String(currentHeading).padStart(3, '0')}° ${getCompassLetter(currentHeading)}`;
+            // The whole map wrapper spins backward against your compass angle, locking the arrow UP
+            mapEl.style.transform = `rotate(${-currentHeading}deg)`;
+        }
+
         // ============================================================
-        // COMPASS SENSOR ENGINE (Device Orientation)
+        // SENSOR CHIP LOGIC
         // ============================================================
         function handleOrientation(event) {
-            let heading = event.webkitCompassHeading || (360 - event.alpha);
-            if (heading !== undefined && heading !== null) {
+            let heading = null;
+            if (event.webkitCompassHeading !== undefined) {
+                heading = event.webkitCompassHeading;
+            } else if (event.alpha !== null) {
+                heading = 360 - event.alpha; 
+            }
+            
+            if (heading !== null && heading !== undefined) {
                 currentHeading = Math.round(heading);
                 applyRotationSystem();
             }
@@ -386,7 +417,7 @@
         }
 
         // ============================================================
-        // TACTICAL WAYPOINT CONTROLLER
+        // WAYPOINTS
         // ============================================================
         function createWaypointMarker(id, lat, lng) {
             const waypoint = L.circleMarker([lat, lng], {
@@ -434,7 +465,7 @@
         savedWaypoints.forEach(wp => createWaypointMarker(wp.id, wp.lat, wp.lng));
         
         // ============================================================
-        // CORE INITIALIZER
+        // GEOLOCATION
         // ============================================================
         if (navigator.geolocation) {
             const success = pos => updateLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
