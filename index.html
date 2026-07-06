@@ -23,17 +23,18 @@
             color: #fff;
         }
         
-        /* Standard viewport setup - absolutely NO CSS container transforms allowed */
+        /* Hardware accelerate the entire map viewport layer using the GPU */
         #map {
             width: 100vw;
             height: 100vh;
             background: #0d0d0d;
+            transform: translate3d(0, 0, 0);
+            will-change: transform;
         }
 
         /* 
-           THE PERMANENT ENGINE FIXED ARROW:
-           Placed directly inside a screen-centered viewport box. 
-           Completely disconnected from Leaflet elements to guarantee 0% drift.
+           PERMANENT FIXED OVERLAY ARROW:
+           Completely separated from Leaflet layout cycles to guarantee 0% performance loss.
         */
         .center-indicator {
             position: fixed;
@@ -224,7 +225,7 @@
         </div>
     </div>
 
-    <!-- Fixed Layer Arrow overlay container -->
+    <!-- Fixed Screen Layer Arrow -->
     <div class="center-indicator">
         <div class="compass-arrow"></div>
     </div>
@@ -233,22 +234,27 @@
 
     <script>
         // ============================================================
-        // MAP ENGINE SETUP
+        // PERFORMANCE BOOST MAP ENGINE SETUP
         // ============================================================
         const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; CARTO',
-            maxZoom: 20
+            maxZoom: 20,
+            updateWhenIdle: true, // Speeds up loading by pausing layer renders during active pans
+            keepBuffer: 3         // Caches neighboring tiles ahead of time so rotation doesn't stutter
         });
 
         const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             attribution: '&copy; Esri',
-            maxZoom: 19
+            maxZoom: 19,
+            updateWhenIdle: true,
+            keepBuffer: 3
         });
 
         const map = L.map('map', {
             zoomControl: false, 
             center: [0, 0],
             zoom: 2,
+            preferCanvas: true, // FORCE LEAFLET TO DRAW TRAILS VIA ULTRA-FAST CANVAS ENGINE INSTRUMENTS
             layers: [streetLayer]
         });
 
@@ -260,8 +266,7 @@
         let accuracyCircle = null;
         let isFirstLocation = true;
         let currentHeading = 0; 
-        let currentLat = 0;
-        let currentLng = 0;
+        let lastHeadingApplied = -1;
         
         let flagShowHUD = true;
         let flagShowTrail = true; 
@@ -271,7 +276,8 @@
             color: '#00ffcc',
             weight: 3,
             opacity: 0.6,
-            dashArray: '4, 8' 
+            dashArray: '4, 8',
+            smoothFactor: 2.0 // Blurs micro-points together to keep GPU draw calls incredibly light
         }).addTo(map);
 
         let savedWaypoints = []; 
@@ -282,26 +288,26 @@
         const coordsEl = document.getElementById('coords');
         const accuracyEl = document.getElementById('accuracy');
         const bearingEl = document.getElementById('bearing');
-        const mapContainer = document.getElementById('map');
 
         // ============================================================
-        // POSITIONING LOGIC
+        // POSITIONING & DOWNSAMPLING LOGIC
         // ============================================================
         function updateLocation(lat, lng, accuracy = null) {
-            currentLat = lat;
-            currentLng = lng;
-            
             coordsEl.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
             if (accuracy !== null) {
                 accuracyEl.textContent = `±${Math.round(accuracy)}m`;
             }
             
-            let appendNode = true;
-            if (pathCoordinates.length > 0) {
+            let appendNode = false;
+            if (pathCoordinates.length === 0) {
+                appendNode = true;
+            } else {
                 const lastPoint = L.latLng(pathCoordinates[pathCoordinates.length - 1]);
                 const currentPoint = L.latLng(lat, lng);
-                const distance = lastPoint.distanceTo(currentPoint);
-                if (distance < 2) appendNode = false;
+                // THE SPEED FIX: Only add points to the trail line if you've moved at least 5 meters.
+                if (lastPoint.distanceTo(currentPoint) >= 5) {
+                    appendNode = true;
+                }
             }
 
             if (appendNode) {
@@ -314,7 +320,7 @@
                     radius: accuracy || 0,
                     color: '#00ffcc',
                     fillColor: '#00ffcc',
-                    fillOpacity: 0.08,
+                    fillOpacity: 0.05,
                     weight: 1
                 }).addTo(map);
             } else {
@@ -322,8 +328,8 @@
                 if (accuracy) accuracyCircle.setRadius(accuracy);
             }
             
-            // Re-center system view map bounds natively
             map.setView([lat, lng], map.getZoom(), { animate: false });
+            applyRotationSystem();
 
             if (isFirstLocation) {
                 map.setView([lat, lng], 17);
@@ -367,22 +373,26 @@
         }
 
         // ============================================================
-        // SAFE ROTATION ENGINE (NO LOOP TRAP)
+        // HIGH PERFORMANCE HARDWARE ACCELERATED ROTATION MATRIX
         // ============================================================
         function applyRotationSystem() {
+            if (currentHeading === lastHeadingApplied) return; // Drop redundant loops
+            lastHeadingApplied = currentHeading;
+
             bearingEl.textContent = `${String(currentHeading).padStart(3, '0')}° ${getCompassLetter(currentHeading)}`;
             
-            // To prevent sensory feedback loops, we rotate the inner pane tile layer map container only.
             const mapPane = map.getPane('mapPane');
             if (mapPane) {
+                // translate3d forces the phone's native graphics card chip (GPU) to draw the rotating map layers
                 mapPane.style.transformOrigin = "50% 50%";
-                mapPane.style.transform = `rotate(${-currentHeading}deg)`;
+                mapPane.style.transform = `translate3d(0,0,0) rotate(${-currentHeading}deg)`;
             }
         }
 
         // ============================================================
-        // SENSOR INTERFACE CHIPSET
+        // HARDWARE REFRESH RATE OPTIMIZER
         // ============================================================
+        let frameThrottle = false;
         function handleOrientation(event) {
             let heading = null;
             if (event.webkitCompassHeading !== undefined) {
@@ -393,7 +403,15 @@
             
             if (heading !== null && heading !== undefined) {
                 currentHeading = Math.round(heading);
-                applyRotationSystem();
+                
+                // Uses animation frame sync ticks to match your phone screen refresh rate perfectly (60Hz/120Hz)
+                if (!frameThrottle) {
+                    window.requestAnimationFrame(() => {
+                        applyRotationSystem();
+                        frameThrottle = false;
+                    });
+                    frameThrottle = true;
+                }
             }
         }
 
@@ -447,10 +465,8 @@
             waypoint.on('popupopen', attachDeleteEvent);
         }
 
-        // Click handler built to map tap vectors correctly back from rotated view space matrices
         map.on('click', function(e) {
             if (e.originalEvent.target.classList.contains('leaflet-interactive')) return;
-            
             const clickedLat = e.latlng.lat;
             const clickedLng = e.latlng.lng;
             const waypointId = Date.now(); 
