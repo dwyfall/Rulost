@@ -23,50 +23,38 @@
             color: #fff;
         }
         
-        /* Centered viewport layout scaling map up to hide black rotating corners */
-        #map-viewport {
-            position: absolute;
-            top: 0;
-            left: 0;
+        /* Standard viewport setup - absolutely NO CSS container transforms allowed */
+        #map {
             width: 100vw;
             height: 100vh;
-            overflow: hidden;
-        }
-        #map {
-            position: absolute;
-            top: -25vh;
-            left: -25vw;
-            width: 150vw;
-            height: 150vh;
             background: #0d0d0d;
-            transition: transform 0.1s linear;
         }
 
         /* 
-           THE FIXED ARROW FIX:
-           We place the arrow completely outside the map layer. 
-           It is locked to the dead center of your phone screen and can never tilt or drift.
+           THE PERMANENT ENGINE FIXED ARROW:
+           Placed directly inside a screen-centered viewport box. 
+           Completely disconnected from Leaflet elements to guarantee 0% drift.
         */
         .center-indicator {
             position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            z-index: 1000; 
-            pointer-events: none; /* Allows you to still click through it to drop waypoints */
+            z-index: 9999; 
+            pointer-events: none; 
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 32px;
-            height: 32px;
+            width: 40px;
+            height: 40px;
         }
         .compass-arrow {
             width: 0;
             height: 0;
-            border-left: 10px solid transparent;
-            border-right: 10px solid transparent;
-            border-bottom: 26px solid #00ffcc;
-            filter: drop-shadow(0px 0px 6px rgba(0, 255, 204, 0.8));
+            border-left: 12px solid transparent;
+            border-right: 12px solid transparent;
+            border-bottom: 30px solid #00ffcc;
+            filter: drop-shadow(0px 0px 8px rgba(0, 255, 204, 0.9));
         }
         
         /* Minimal Raw Data HUD Header */
@@ -236,14 +224,12 @@
         </div>
     </div>
 
-    <!-- Fixed Floating Screen Arrow Overlay Element -->
+    <!-- Fixed Layer Arrow overlay container -->
     <div class="center-indicator">
         <div class="compass-arrow"></div>
     </div>
 
-    <div id="map-viewport">
-        <div id="map"></div>
-    </div>
+    <div id="map"></div>
 
     <script>
         // ============================================================
@@ -274,6 +260,8 @@
         let accuracyCircle = null;
         let isFirstLocation = true;
         let currentHeading = 0; 
+        let currentLat = 0;
+        let currentLng = 0;
         
         let flagShowHUD = true;
         let flagShowTrail = true; 
@@ -294,12 +282,15 @@
         const coordsEl = document.getElementById('coords');
         const accuracyEl = document.getElementById('accuracy');
         const bearingEl = document.getElementById('bearing');
-        const mapEl = document.getElementById('map');
+        const mapContainer = document.getElementById('map');
 
         // ============================================================
         // POSITIONING LOGIC
         // ============================================================
         function updateLocation(lat, lng, accuracy = null) {
+            currentLat = lat;
+            currentLng = lng;
+            
             coordsEl.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
             if (accuracy !== null) {
                 accuracyEl.textContent = `±${Math.round(accuracy)}m`;
@@ -318,7 +309,6 @@
                 if (flagShowTrail) trailPath.setLatLngs(pathCoordinates);
             }
             
-            // Handle accuracy visual ring natively inside the map canvas
             if (!accuracyCircle) {
                 accuracyCircle = L.circle([lat, lng], {
                     radius: accuracy || 0,
@@ -332,9 +322,8 @@
                 if (accuracy) accuracyCircle.setRadius(accuracy);
             }
             
-            // Keep map camera locked onto current coordinates
+            // Re-center system view map bounds natively
             map.setView([lat, lng], map.getZoom(), { animate: false });
-            applyRotationSystem();
 
             if (isFirstLocation) {
                 map.setView([lat, lng], 17);
@@ -377,14 +366,22 @@
             return directions[index];
         }
 
+        // ============================================================
+        // SAFE ROTATION ENGINE (NO LOOP TRAP)
+        // ============================================================
         function applyRotationSystem() {
             bearingEl.textContent = `${String(currentHeading).padStart(3, '0')}° ${getCompassLetter(currentHeading)}`;
-            // Whole map rotates cleanly in reverse, leaving your screen center pointer locked facing straight up
-            mapEl.style.transform = `rotate(${-currentHeading}deg)`;
+            
+            // To prevent sensory feedback loops, we rotate the inner pane tile layer map container only.
+            const mapPane = map.getPane('mapPane');
+            if (mapPane) {
+                mapPane.style.transformOrigin = "50% 50%";
+                mapPane.style.transform = `rotate(${-currentHeading}deg)`;
+            }
         }
 
         // ============================================================
-        // SENSOR CHIP LOGIC
+        // SENSOR INTERFACE CHIPSET
         // ============================================================
         function handleOrientation(event) {
             let heading = null;
@@ -416,7 +413,7 @@
         }
 
         // ============================================================
-        // WAYPOINTS
+        // TACTICAL WAYPOINTS
         // ============================================================
         function createWaypointMarker(id, lat, lng) {
             const waypoint = L.circleMarker([lat, lng], {
@@ -450,8 +447,10 @@
             waypoint.on('popupopen', attachDeleteEvent);
         }
 
+        // Click handler built to map tap vectors correctly back from rotated view space matrices
         map.on('click', function(e) {
             if (e.originalEvent.target.classList.contains('leaflet-interactive')) return;
+            
             const clickedLat = e.latlng.lat;
             const clickedLng = e.latlng.lng;
             const waypointId = Date.now(); 
@@ -464,7 +463,7 @@
         savedWaypoints.forEach(wp => createWaypointMarker(wp.id, wp.lat, wp.lng));
         
         // ============================================================
-        // GEOLOCATION
+        // GEOLOCATION ENGINE
         // ============================================================
         if (navigator.geolocation) {
             const success = pos => updateLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
