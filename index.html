@@ -23,10 +23,7 @@
             color: #fff;
         }
         
-        /* 
-           THE FIX: We wrap the map in a centered viewport and scale it up to 150%. 
-           This pushes the ugly rotating corners completely offscreen!
-        */
+        /* Centered viewport scaling map container up to hide black corners */
         #map-viewport {
             position: absolute;
             top: 0;
@@ -43,6 +40,16 @@
             height: 150vh;
             background: #0d0d0d;
             transition: transform 0.1s linear;
+        }
+
+        /* 
+           THE ULTIMATE ARROW FIX: 
+           Leaflet internally tries to counter-rotate markers. We use !important 
+           to force the user-marker to ignore Leaflet and stay locked pointing straight up.
+        */
+        .leaflet-marker-icon {
+            transform: rotate(0deg) !important;
+            transform-origin: center center !important;
         }
         
         /* Minimal Raw Data HUD Header */
@@ -173,7 +180,7 @@
         .open .bar:nth-child(2) { opacity: 0; }
         .open .bar:nth-child(3) { transform: rotate(45deg) translate(-5px, -5px); }
 
-        /* THE COMPASS POINTER: Fixed straight up, never rotates */
+        /* THE COMPASS POINTER: Built facing up */
         .compass-container {
             width: 32px;
             height: 32px;
@@ -380,7 +387,7 @@
 
         function applyRotationSystem() {
             bearingEl.textContent = `${String(currentHeading).padStart(3, '0')}° ${getCompassLetter(currentHeading)}`;
-            // The whole map wrapper spins backward against your compass angle, locking the arrow UP
+            // The whole map wrapper spins backward against your compass angle
             mapEl.style.transform = `rotate(${-currentHeading}deg)`;
         }
 
