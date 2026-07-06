@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NavApp Sandbox</title>
+    
+    <!-- Leaflet.js -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1a1a1a;
+            overflow: hidden;
+            height: 100vh;
+        }
+        #map {
+            width: 100%;
+            height: 100vh;
+            background: #0d0d0d;
+        }
+        
+        .status {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #4a7fff;
+            padding: 8px 24px;
+            border-radius: 20px;
+            color: #4a7fff;
+            font-size: 13px;
+            text-align: center;
+            pointer-events: none;
+            backdrop-filter: blur(4px);
+        }
+        .status .latlng {
+            color: #7fff7f;
+            font-weight: bold;
+        }
+        .status .accuracy {
+            color: #ffaa44;
+            font-size: 11px;
+            display: block;
+            margin-top: 2px;
+        }
+        
+        .hint {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            color: rgba(255,255,255,0.7);
+            font-size: 11px;
+            text-align: center;
+            pointer-events: none;
+            background: rgba(0,0,0,0.7);
+            padding: 6px 16px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 400px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="status" id="status">
+        <span id="status-text">📡 Booting Navigation Systems...</span> 
+        <span class="latlng" id="coords"></span>
+        <span class="accuracy" id="accuracy"></span>
+    </div>
+
+    <div id="map"></div>
+    
+    <div class="hint">🚩 Tap Map to Drop Waypoint • Tap Flag to Delete • Press 'C' to Center</div>
+
+    <script>
+        // ============================================================
+        // MAP CHANNELS (Free & Up-To-Date)
+        // ============================================================
+        const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO',
+            subdomains: 'abcd',
+            maxZoom: 20
+        });
+
+        const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: '&copy; Esri',
+            maxZoom: 19
+        });
+
+        const map = L.map('map', {
+            zoomControl: true,
+            center: [0, 0],
+            zoom: 2,
+            layers: [streetLayer]
+        });
+
+        const baseMaps = {
+            "🏙️ Navigation Map": streetLayer,
+            "🛰️ Satellite Map": satelliteLayer
+        };
+        L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+        
+        // ============================================================
+        // TRACKING & MEMORY VARIABLES
+        // ============================================================
+        let userMarker = null;
+        let accuracyCircle = null;
+        let isFirstLocation = true;
+        
+        let pathCoordinates = [];
+        const trailPath = L.polyline([], {
+            color: '#4a7fff',
+            weight: 4,
+            opacity: 0.7,
+            dashArray: '5, 10' 
+        }).addTo(map);
+
+        // Try loading existing saved waypoints from device storage, or start empty if none exist
+        let savedWaypoints = JSON.parse(localStorage.getItem('nav_waypoints')) || []; 
+
+        const coordsEl = document.getElementById('coords');
+        const accuracyEl = document.getElementById('accuracy');
+        const statusTextEl = document.getElementById('status-text');
+        const statusEl = document.getElementById('status');
+        
+        // ============================================================
+        // GPS TRACKING ENGINE
+        // ============================================================
+        function updateLocation(lat, lng, accuracy = null) {
+            coordsEl.textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+            if (accuracy !== null) {
+                accuracyEl.textContent = `GPS Signal: ±${Math.round(accuracy)}m`;
+            }
+            
+            pathCoordinates.push([lat, lng]);
+            trailPath.setLatLngs(pathCoordinates);
+            
+            if (!userMarker) {
+                userMarker = L.circleMarker([lat, lng], {
+                    radius: 9,
+                    fillColor: '#00ffcc', 
+                    color: '#ffffff',
+                    weight: 3,
+                    fillOpacity: 1
+                }).addTo(map);
+                userMarker.bindPopup('🛸 Your Current Position');
+                
+                if (accuracy) {
+                    accuracyCircle = L.circle([lat, lng], {
+                        radius: accuracy,
+                        color: '#00ffcc',
+                        fillColor: '#00ffcc',
+                        fillOpacity: 0.1,
+                        weight: 1
+                    }).addTo(map);
+                }
+            } else {
+                userMarker.setLatLng([lat, lng]);
+                if (accuracyCircle) {
+                    accuracyCircle.setLatLng([lat, lng]);
+                    if (accuracy) accuracyCircle.setRadius(accuracy);
+                }
+            }
+            
+            if (isFirstLocation) {
+                map.setView([lat, lng], 17);
+                statusTextEl.textContent = `🛰️ Tracking Active: `;
+                isFirstLocation = false;
+            }
+        }
+
+        // ============================================================
+        // WAYPOINT HANDLERS (Create & Delete)
+        // ============================================================
+        
+        // Helper function to render a waypoint object on the Leaflet map
+        function createWaypointMarker(id, lat, lng) {
+            const waypoint = L.circleMarker([lat, lng], {
+                radius: 8,
+                fillColor: '#ff3333', 
+                color: '#ffffff',
+                weight: 2,
+                fillOpacity: 0.9
+            }).addTo(map);
+            
+            const popupContent = document.createElement('div');
+            popupContent.innerHTML = `
+                <div style="font-family: 'Courier New', monospace; text-align: center;">
+                    <b>🚩 Waypoint</b><br>
+                    <span style="font-size: 11px; color: #666;">
+                        ${lat.toFixed(5)}, ${lng.toFixed(5)}
+                    </span><br><br>
+                    <button id="del-${id}" style="
+                        background: #ff3333; 
+                        color: white; 
+                        border: none; 
+                        padding: 4px 8px; 
+                        border-radius: 4px; 
+                        cursor: pointer;
+                        font-family: monospace;
+                        font-weight: bold;
+                    ">🗑️ DELETE</button>
+                </div>
+            `;
+
+            waypoint.bindPopup(popupContent);
+            
+            function attachDeleteEvent() {
+                const deleteBtn = document.getElementById(`del-${id}`);
+                if (deleteBtn) {
+                    deleteBtn.onclick = function() {
+                        map.removeLayer(waypoint);
+                        // Filter item out of data array
+                        savedWaypoints = savedWaypoints.filter(wp => wp.id !== id);
+                        // Save updated array to device storage
+                        localStorage.setItem('nav_waypoints', JSON.stringify(savedWaypoints));
+                    };
+                }
+            }
+
+            setTimeout(attachDeleteEvent, 50);
+            waypoint.on('popupopen', attachDeleteEvent);
+        }
+
+        // Drop new waypoints on map click
+        map.on('click', function(e) {
+            if (e.originalEvent.target.classList.contains('leaflet-interactive')) {
+                return;
+            }
+
+            const clickedLat = e.latlng.lat;
+            const clickedLng = e.latlng.lng;
+            const waypointId = Date.now(); 
+            
+            // 1. Draw it visually
+            createWaypointMarker(waypointId, clickedLat, clickedLng);
+            
+            // 2. Save it to our code array
+            savedWaypoints.push({
+                id: waypointId,
+                lat: clickedLat,
+                lng: clickedLng
+            });
+            
+            // 3. Save it to the device hard drive permanently
+            localStorage.setItem('nav_waypoints', JSON.stringify(savedWaypoints));
+            
+            // Open the dropped marker's popup immediately
+            map.eachLayer(function(layer) {
+                if (layer instanceof L.CircleMarker && layer.getLatLng().lat === clickedLat && layer.getLatLng().lng === clickedLng) {
+                    layer.openPopup();
+                }
+            });
+        });
+
+        // LOAD SAVED WAYPOINTS ON BOOTUP
+        savedWaypoints.forEach(wp => {
+            createWaypointMarker(wp.id, wp.lat, wp.lng);
+        });
+        
+        // ============================================================
+        // ENGINE INITIALIZERS
+        // ============================================================
+        if (navigator.geolocation) {
+            const success = pos => updateLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+            const error = err => { statusTextEl.textContent = '⚠️ GPS Blocked.'; };
+            const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
+            
+            navigator.geolocation.getCurrentPosition(success, error, options);
+            navigator.geolocation.watchPosition(success, error, options);
+        } else {
+            statusTextEl.textContent = '⚠️ Hardware incompatible';
+        }
+        
+        document.addEventListener('keydown', function(e) {
+            if ((e.key === 'c' || e.key === 'C') && userMarker) {
+                map.setView(userMarker.getLatLng(), 17);
+                statusEl.style.borderColor = '#7fff7f';
+                setTimeout(() => statusEl.style.borderColor = '#4a7fff', 500);
+            }
+        });
+    </script>
+</body>
+</html>
