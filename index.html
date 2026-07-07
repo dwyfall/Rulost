@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Rulost</title>
     
+    <!-- Web Icon (Favicon) -->
     <link rel="icon" type="image/png" href="https://maps.google.com/mapfiles/kml/paddle/blu-blank.png">
     
+    <!-- Leaflet.js -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
@@ -33,7 +35,7 @@
             top: 0;
             left: 0;
             z-index: 1;
-            background: #111;
+            background: #000 !important; /* Force true black map container */
         }
         
         .user-marker-container {
@@ -579,35 +581,44 @@
             }
         };
 
-        // ====== REPAIRED MAP BASEPLANE ENDPOINTS ======
-        const minimalistCountryOutlines = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png', {
-            attribution: '© CARTO', 
-            maxZoom: 20,
-            subdomains: ['a', 'b', 'c', 'd']
-        });
+        // Custom Blank Void Layer
+        const blankVoidLayer = L.layerGroup([]);
 
-        const literalGridLayer = L.gridLayer({ tileSize: 256, opacity: 0.25 });
-        literalGridLayer.createTile = function(coords) {
+        // Custom Canvas Grid Layer Layer (Pure lines over absolute dark void)
+        const pureGridLayer = L.gridLayer({ tileSize: 256, opacity: 0.35 });
+        pureGridLayer.createTile = function(coords) {
             const tile = document.createElement('canvas');
             tile.width = 256; tile.height = 256;
             const ctx = tile.getContext('2d');
-            ctx.strokeStyle = 'rgba(0, 122, 255, 0.4)';
-            ctx.lineWidth = 0.5;
+            ctx.strokeStyle = 'rgba(0, 122, 255, 0.45)';
+            ctx.lineWidth = 0.6;
             ctx.strokeRect(0, 0, 256, 256);
-            ctx.fillStyle = 'rgba(0, 122, 255, 0.15)';
+            ctx.fillStyle = 'rgba(0, 122, 255, 0.25)';
             ctx.fillRect(126, 126, 4, 4);
             return tile;
         };
 
-        const strictGridMap = L.layerGroup([minimalistCountryOutlines, literalGridLayer]);
+        // Traditional background layers
+        const minimalistCountryOutlines = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png', {
+            attribution: '© CARTO', maxZoom: 20, subdomains: ['a', 'b', 'c', 'd']
+        });
+        const countryMatrixGroup = L.layerGroup([minimalistCountryOutlines, pureGridLayer]);
         const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', { attribution: '© CARTO', subdomains: ['a', 'b', 'c', 'd'] });
         const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri' });
 
+        // Initialize with Infinite Grid as the default look
         const map = L.map('map', {
-            zoomControl: false, center: [11.56494, 104.91438], zoom: 16, layers: [strictGridMap]
+            zoomControl: false, center: [11.56494, 104.91438], zoom: 16, layers: [pureGridLayer]
         });
 
-        L.control.layers({ "🌐 Country Grid Matrix": strictGridMap, "🛰️ Satellite Imagery": satelliteLayer, "🗺️ Standard Street Map": streetLayer }, null, { position: 'topright' }).addTo(map);
+        // Layer selection controller panel
+        L.control.layers({ 
+            "🌐 Infinite Grid Matrix": pureGridLayer, 
+            "🌑 Absolute Void (Blank)": blankVoidLayer,
+            "🗺️ Country Border Grid": countryMatrixGroup, 
+            "🛰️ Satellite Imagery": satelliteLayer, 
+            "🏙️ Standard Street Map": streetLayer 
+        }, null, { position: 'topright' }).addTo(map);
 
         let userMarker = null;
         let accuracyCircle = null;
