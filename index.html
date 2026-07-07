@@ -9,9 +9,6 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <style>
-        /* ============================================================
-           RESET & CORE STYLES
-           ============================================================ */
         * {
             margin: 0;
             padding: 0;
@@ -19,7 +16,7 @@
         }
         
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
             background: #000;
             overflow: hidden;
             height: 100vh;
@@ -34,12 +31,9 @@
             top: 0;
             left: 0;
             z-index: 1;
-            background: #0a0a0a;
+            background: #111; /* Slightly lighter back-fill so you can distinguish missing map vs crash */
         }
         
-        /* ============================================================
-           USER MARKER (Dynamic Arrow Styling)
-           ============================================================ */
         .user-marker-container {
             background: none !important;
             border: none !important;
@@ -62,9 +56,6 @@
             filter: drop-shadow(0 2px 8px rgba(0, 122, 255, 0.4));
         }
         
-        /* ============================================================
-           WAYPOINT MARKER
-           ============================================================ */
         .waypoint-pin {
             width: 100%;
             height: 100%;
@@ -79,9 +70,6 @@
             font-size: calc(var(--pin-size, 36px) * 0.5);
         }
         
-        /* ============================================================
-           MAGNIFYING GLASS
-           ============================================================ */
         .magnifying-glass {
             position: fixed;
             z-index: 9999;
@@ -123,9 +111,6 @@
             font-size: 16px;
         }
         
-        /* ============================================================
-           HUD DISPLAY
-           ============================================================ */
         .hud {
             position: fixed;
             top: 20px;
@@ -172,9 +157,6 @@
             font-size: 12px;
         }
         
-        /* ============================================================
-           SLIDING SIDEBAR NAVIGATION SYSTEM
-           ============================================================ */
         .sidebar-wrapper {
             position: fixed;
             top: 0;
@@ -275,7 +257,6 @@
             color: #ff453a !important;
         }
 
-        /* Config groups mimicking standard Apple lists */
         .setting-group {
             background: rgba(255, 255, 255, 0.03);
             border-radius: 12px;
@@ -296,7 +277,6 @@
             border-bottom: none;
         }
 
-        /* Segment controller toggles */
         .segment-container {
             display: flex;
             background: rgba(255, 255, 255, 0.08);
@@ -320,7 +300,6 @@
             font-weight: 600;
         }
 
-        /* iOS-Style Switches & sliders */
         .apple-switch {
             position: relative;
             width: 42px;
@@ -385,9 +364,6 @@
             border-radius: 50%;
         }
 
-        /* ============================================================
-           HAMBURGER BUTTON
-           ============================================================ */
         .hamburger {
             position: fixed;
             top: 20px;
@@ -413,9 +389,6 @@
         .hamburger.open .bar:nth-child(2) { opacity: 0; }
         .hamburger.open .bar:nth-child(3) { transform: rotate(45deg) translate(-4px, -4px); }
         
-        /* ============================================================
-           ACTION BUTTON (Drop Pin)
-           ============================================================ */
         .action-btn {
             position: fixed;
             bottom: 40px;
@@ -442,9 +415,6 @@
         .action-btn:hover { background: rgba(255, 255, 255, 0.12); transform: scale(1.04); }
         .action-btn:active { cursor: grabbing; transform: scale(0.92); }
         
-        /* ============================================================
-           MAP POPUPS MOD OVERRIDES
-           ============================================================ */
         .leaflet-control-layers {
             background: rgba(0, 0, 0, 0.6) !important;
             backdrop-filter: blur(20px) !important;
@@ -591,9 +561,6 @@
     </button>
 
     <script>
-        // ============================================================
-        // GLOBAL SCOPE PIPELINE EXECUTIONS
-        // ============================================================
         window.deleteWaypoint = function(id) {
             const idx = waypoints.findIndex(w => w.id === id);
             if (idx !== -1) {
@@ -604,7 +571,7 @@
         };
 
         // ============================================================
-        // LEAFLET MAP LAYER INITIALIZATION
+        // BULLETPROOF LAYER FALLBACK INITIALIZATION
         // ============================================================
         const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
             attribution: '© CARTO', maxZoom: 20
@@ -612,17 +579,25 @@
         const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             attribution: '© Esri', maxZoom: 19
         });
+        // Hard backup tile layer if CARTO goes entirely down or is blocked on your web view
+        const backupLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OSM'
+        });
 
-        // Safe Initialization: Changed preferCanvas to false to prevent layout blank-outs on mobile GPUs
         const map = L.map('map', {
             zoomControl: false, center: [11.56494, 104.91438], zoom: 15, preferCanvas: false, layers: [streetLayer]
         });
 
-        L.control.layers({ "🗺️ Street": streetLayer, "🛰️ Satellite": satelliteLayer }, null, { position: 'topright' }).addTo(map);
+        // If primary map tiles fail to fetch on your device, load the backup layer instantly
+        streetLayer.on('tileerror', function() {
+            if(!map.hasLayer(backupLayer)) {
+                backupLayer.addTo(map);
+                map.removeLayer(streetLayer);
+            }
+        });
 
-        // ============================================================
-        // COMPONENT INSTANCE ENGINES & PREFERENCE STATES
-        // ============================================================
+        L.control.layers({ "🗺️ Street": streetLayer, "🛰️ Satellite": satelliteLayer, "🔄 Fallback": backupLayer }, null, { position: 'topright' }).addTo(map);
+
         let userMarker = null;
         let accuracyCircle = null;
         let isFirstLocation = true;
@@ -632,7 +607,6 @@
         let lastLat = null, lastLng = null;
         let compassAttached = false;
 
-        // Default layout parameters (used if localStorage is completely blank)
         let showHUD = true;
         let showTrail = true;
         let markerType = 'pin';
@@ -654,14 +628,11 @@
         const magGlass = document.getElementById('magnifying-glass');
         const zoomContent = document.getElementById('zoom-content');
 
-        // ============================================================
-        // STATE PERSISTENCE ENGINE (localStorage Integration)
-        // ============================================================
         function saveSettings() {
             try {
                 const configObj = { showHUD, showTrail, markerType, pinSize, circleConfig, arrowConfig };
                 localStorage.setItem('rulost_settings', JSON.stringify(configObj));
-            } catch(e) { console.error(e); }
+            } catch(e) {}
         }
 
         function loadSettings() {
@@ -676,7 +647,7 @@
                     if (configObj.circleConfig !== undefined) circleConfig = configObj.circleConfig;
                     if (configObj.arrowConfig !== undefined) arrowConfig = configObj.arrowConfig;
                 }
-            } catch (e) { console.error("Failed loading configurations:", e); }
+            } catch (e) {}
         }
 
         function applyStoredSettingsToDOM() {
@@ -700,12 +671,9 @@
                 const pCtrl = document.getElementById('pin-size-control'); if(pCtrl) pCtrl.style.display = markerType === 'pin' ? 'block' : 'none';
                 const cCust = document.getElementById('circle-customizers'); if(cCust) cCust.style.display = markerType === 'circle' ? 'block' : 'none';
                 const dBtnIcon = document.getElementById('drop-btn-icon'); if(dBtnIcon) dBtnIcon.textContent = markerType === 'pin' ? '📍' : '🔵';
-            } catch(e) { console.error(e); }
+            } catch(e) {}
         }
 
-        // ============================================================
-        // WAYPOINT RENDERING LOOP ACTIONS
-        // ============================================================
         function createWaypoint(id, lat, lng) {
             if (waypoints.some(w => w.id === id)) return;
             let layerInstance;
@@ -762,7 +730,7 @@
             try {
                 const data = waypoints.map(w => ({ id: w.id, lat: w.lat, lng: w.lng }));
                 localStorage.setItem('rulost_waypoints', JSON.stringify(data));
-            } catch(e) { console.error(e); }
+            } catch(e) {}
         }
 
         function loadWaypoints() {
@@ -770,7 +738,7 @@
                 const raw = localStorage.getItem('rulost_waypoints');
                 const data = raw ? JSON.parse(raw) : [];
                 data.forEach(w => createWaypoint(w.id, w.lat, w.lng));
-            } catch(e) { console.error(e); }
+            } catch(e) {}
         }
 
         function navigateToSettings(shouldGoToSettings) {
@@ -796,4 +764,288 @@
         }
 
         function updateCircleConfigs() {
-            circleConfig
+            circleConfig.radius = parseInt(document.getElementById('cfg-radius').value, 10);
+            circleConfig.color = document.getElementById('cfg-color').value;
+            circleConfig.opacity = parseFloat(document.getElementById('cfg-opacity').value) / 100;
+            if (markerType === 'circle') {
+                waypoints.forEach(w => {
+                    if (w.layerInstance.setRadius) {
+                        w.layerInstance.setRadius(circleConfig.radius);
+                        w.layerInstance.setStyle({ color: circleConfig.color, fillColor: circleConfig.color, fillOpacity: circleConfig.opacity });
+                    }
+                });
+            }
+            saveSettings();
+        }
+
+        function updateArrowConfigs() {
+            arrowConfig.showRadius = document.getElementById('cfg-show-radius').checked;
+            arrowConfig.color = document.getElementById('cfg-arrow-color').value;
+            document.documentElement.style.setProperty('--arrow-color', arrowConfig.color);
+            if (accuracyCircle) {
+                if (arrowConfig.showRadius) {
+                    accuracyCircle.setStyle({ opacity: 1, fillOpacity: 0.06, color: arrowConfig.color, fillColor: arrowConfig.color });
+                } else { accuracyCircle.setStyle({ opacity: 0, fillOpacity: 0 }); }
+            }
+            saveSettings();
+        }
+
+        // ============================================================
+        // SAFE ARROW ROTATION CONTROLLER
+        // ============================================================
+        function applyRotation() {
+            if (currentHeading === lastHeadingApplied) return;
+            lastHeadingApplied = currentHeading;
+            const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+            const idx = Math.round(((currentHeading % 360) / 45)) % 8;
+            if(bearingEl) bearingEl.textContent = `${String(currentHeading).padStart(3, '0')}° ${dirs[idx]}`;
+
+            // Bulletproof search: if map rendering was sluggish, look up element by direct class
+            const arrow = document.getElementById('arrow-element') || document.querySelector('.user-marker');
+            if (arrow) {
+                arrow.style.transform = `rotate(${currentHeading}deg)`;
+            }
+        }
+
+        function handleOrientation(e) {
+            let heading = e.webkitCompassHeading ?? (e.alpha !== null ? 360 - e.alpha : null);
+            if (heading !== null && heading !== undefined) {
+                currentHeading = Math.round(heading);
+                applyRotation();
+            }
+        }
+
+        function requestOrientationPermission() {
+            if (compassAttached) return;
+            if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            window.addEventListener('deviceorientation', handleOrientation, true);
+                            compassAttached = true;
+                        }
+                    }).catch(console.error);
+            } else if (window.DeviceOrientationEvent) {
+                window.addEventListener('deviceorientation', handleOrientation, true);
+                compassAttached = true;
+            }
+        }
+
+        function updateLocation(lat, lng, accuracy = null, heading = null) {
+            if(coordsEl) coordsEl.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            if(accuracyEl) accuracyEl.textContent = accuracy ? `±${Math.round(accuracy)}m` : '---';
+
+            if (heading !== null && heading !== undefined && !isNaN(heading)) {
+                currentHeading = Math.round(heading);
+            } else if (lastLat !== null && lastLng !== null) {
+                const dLon = (lng - lastLng) * Math.PI / 180;
+                const lat1 = lastLat * Math.PI / 180;
+                const lat2 = lat * Math.PI / 180;
+                const y = Math.sin(dLon) * Math.cos(lat2);
+                const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+                const bearing = Math.atan2(y, x) * 180 / Math.PI;
+                const distance = L.latLng([lastLat, lastLng]).distanceTo([lat, lng]);
+                if (distance > 2) { 
+                    currentHeading = Math.round((bearing + 360) % 360);
+                }
+            }
+            
+            lastLat = lat;
+            lastLng = lng;
+
+            if (trailPoints.length === 0 || L.latLng(trailPoints[trailPoints.length - 1]).distanceTo([lat, lng]) > 5) {
+                trailPoints.push([lat, lng]);
+                if (showTrail) trailLine.setLatLngs(trailPoints);
+            }
+
+            if (!accuracyCircle) {
+                accuracyCircle = L.circle([lat, lng], {
+                    radius: accuracy || 20, color: arrowConfig.color, fillColor: arrowConfig.color,
+                    fillOpacity: arrowConfig.showRadius ? 0.06 : 0, opacity: arrowConfig.showRadius ? 1 : 0, weight: 1
+                }).addTo(map);
+            } else {
+                accuracyCircle.setLatLng([lat, lng]);
+                if (accuracy) accuracyCircle.setRadius(accuracy);
+            }
+
+            if (!userMarker) {
+                const icon = L.divIcon({
+                    className: 'user-marker-container',
+                    html: `<div class="user-marker" id="arrow-element"><div class="user-arrow"></div></div>`,
+                    iconSize: [28, 28], iconAnchor: [14, 14]
+                });
+                userMarker = L.marker([lat, lng], { icon }).addTo(map);
+            } else { userMarker.setLatLng([lat, lng]); }
+
+            applyRotation();
+            if (isFirstLocation) { map.setView([lat, lng], 17); isFirstLocation = false; }
+        }
+
+        map.on('contextmenu', function(e) {
+            createWaypoint(Date.now().toString(), e.latlng.lat, e.latlng.lng);
+        });
+
+        const dropBtn = document.getElementById('drop-btn');
+        let isDragging = false;
+        let offsetX = 0, offsetY = 0;
+
+        function updateMagnifyingGlass(clientX, clientY) {
+            const mapContainer = map.getContainer();
+            const rect = mapContainer.getBoundingClientRect();
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+
+            if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+                magGlass.style.display = 'block';
+                magGlass.style.left = clientX + 'px';
+                magGlass.style.top = (clientY - 60) + 'px';
+
+                const latlng = map.containerPointToLatLng([x, y]);
+                const zoomedCenter = map.project(latlng, map.getZoom() + 2);
+                const tileSize = 256; const scale = 2;
+                const baseUrl = 'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
+                const url = baseUrl.replace('{z}', map.getZoom() + 2).replace('{x}', Math.floor(zoomedCenter.x / tileSize)).replace('{y}', Math.floor(zoomedCenter.y / tileSize));
+                zoomContent.style.backgroundImage = `url('${url}')`;
+                zoomContent.style.backgroundSize = `${tileSize * scale}px ${tileSize * scale}px`;
+                zoomContent.style.backgroundPosition = `-${(zoomedCenter.x % tileSize) * scale}px -${(zoomedCenter.y % tileSize) * scale}px`;
+            } else { magGlass.style.display = 'none'; }
+        }
+
+        dropBtn.addEventListener('touchstart', function(e) {
+            const touch = e.touches[0];
+            const rect = dropBtn.getBoundingClientRect();
+            offsetX = touch.clientX - rect.left; offsetY = touch.clientY - rect.top;
+            isDragging = true; dropBtn.style.opacity = '0.6';
+        }, { passive: true });
+
+        document.addEventListener('touchmove', function(e) {
+            if (!isDragging) return; e.preventDefault();
+            const touch = e.touches[0];
+            dropBtn.style.position = 'fixed'; dropBtn.style.left = (touch.clientX - offsetX) + 'px'; dropBtn.style.top = (touch.clientY - offsetY) + 'px';
+            dropBtn.style.bottom = 'auto'; dropBtn.style.right = 'auto';
+            updateMagnifyingGlass(touch.clientX, touch.clientY);
+        }, { passive: false });
+
+        document.addEventListener('touchend', function(e) {
+            if (!isDragging) return; isDragging = false;
+            dropBtn.style.opacity = '1'; magGlass.style.display = 'none';
+            const touch = e.changedTouches[0];
+            const mapContainer = map.getContainer();
+            const rect = mapContainer.getBoundingClientRect();
+            const x = touch.clientX - rect.left; const y = touch.clientY - rect.top;
+
+            if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+                const latlng = map.containerPointToLatLng([x, y]);
+                createWaypoint(Date.now().toString(), latlng.lat, latlng.lng);
+            }
+            dropBtn.style.left = ''; dropBtn.style.top = ''; dropBtn.style.position = 'fixed'; dropBtn.style.bottom = '40px'; dropBtn.style.right = '24px';
+        }, { passive: true });
+
+        dropBtn.addEventListener('mousedown', function(e) {
+            const rect = dropBtn.getBoundingClientRect();
+            offsetX = e.clientX - rect.left; offsetY = e.clientY - rect.top;
+            isDragging = true; dropBtn.style.cursor = 'grabbing'; dropBtn.style.opacity = '0.6';
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isDragging) return;
+            dropBtn.style.position = 'fixed'; dropBtn.style.left = (e.clientX - offsetX) + 'px'; dropBtn.style.top = (e.clientY - offsetY) + 'px';
+            dropBtn.style.bottom = 'auto'; dropBtn.style.right = 'auto';
+            updateMagnifyingGlass(e.clientX, e.clientY);
+        });
+
+        document.addEventListener('mouseup', function(e) {
+            if (!isDragging) return; isDragging = false;
+            dropBtn.style.cursor = 'grab'; dropBtn.style.opacity = '1'; magGlass.style.display = 'none';
+            const rect = map.getContainer().getBoundingClientRect();
+            const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+
+            if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+                const latlng = map.containerPointToLatLng([x, y]);
+                createWaypoint(Date.now().toString(), latlng.lat, latlng.lng);
+            }
+            dropBtn.style.left = ''; dropBtn.style.top = ''; dropBtn.style.position = 'fixed'; dropBtn.style.bottom = '40px'; dropBtn.style.right = '24px';
+        });
+
+        loadSettings();
+        applyStoredSettingsToDOM();
+        loadWaypoints();
+
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(
+                pos => updateLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, pos.coords.heading),
+                err => { if(coordsEl) coordsEl.textContent = 'No GPS'; }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+            );
+        } else { if(coordsEl) coordsEl.textContent = 'No GPS'; }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar-panel');
+            const trigger = document.getElementById('menu-btn');
+            if(sidebar && trigger) {
+                sidebar.classList.toggle('open');
+                trigger.classList.toggle('open');
+                if (!sidebar.classList.contains('open')) navigateToSettings(false);
+            }
+            setTimeout(() => { map.invalidateSize(); }, 350);
+        }
+
+        function toggleOption(type) {
+            const btn = document.getElementById(`opt-${type}`);
+            if (type === 'hud') {
+                showHUD = !showHUD;
+                if(hudEl) hudEl.style.opacity = showHUD ? '1' : '0';
+                if(btn) btn.classList.toggle('active', showHUD);
+            } else if (type === 'trail') {
+                showTrail = !showTrail;
+                if (showTrail) { trailLine.setLatLngs(trailPoints); } else { trailLine.setLatLngs([]); }
+                if(btn) btn.classList.toggle('active', showTrail);
+            }
+            saveSettings();
+        }
+
+        function clearTrail() { trailPoints = []; trailLine.setLatLngs([]); }
+
+        function clearWaypoints() {
+            const btn = document.getElementById('btn-clear-waypoints');
+            if(!btn) return;
+            if (btn.classList.contains('danger-confirm')) {
+                clearTimeout(clearWaypointsTimeout);
+                waypoints.forEach(w => map.removeLayer(w.layerInstance));
+                waypoints = []; saveWaypoints();
+                btn.classList.remove('danger-confirm');
+                btn.querySelector('span:first-child').textContent = 'Clear Waypoints';
+                btn.querySelector('.badge').textContent = '✕';
+            } else {
+                btn.classList.add('danger-confirm');
+                btn.querySelector('span:first-child').textContent = 'Are you sure?';
+                btn.querySelector('.badge').textContent = '●';
+                clearWaypointsTimeout = setTimeout(() => {
+                    btn.classList.remove('danger-confirm');
+                    btn.querySelector('span:first-child').textContent = 'Clear Waypoints';
+                    btn.querySelector('.badge').textContent = '✕';
+                }, 3000);
+            }
+        }
+
+        function centerMap() {
+            requestOrientationPermission();
+            if (userMarker) {
+                const pos = userMarker.getLatLng();
+                map.setView([pos.lat, pos.lng], 17);
+            }
+        }
+
+        window.toggleSidebar = toggleSidebar;
+        window.toggleOption = toggleOption;
+        window.clearTrail = clearTrail;
+        window.clearWaypoints = clearWaypoints;
+        window.centerMap = centerMap;
+        window.navigateToSettings = navigateToSettings;
+        window.setMarkerStyle = setMarkerStyle;
+        window.updatePinConfigs = updatePinConfigs;
+        window.updateCircleConfigs = updateCircleConfigs;
+        window.updateArrowConfigs = updateArrowConfigs;
+        window.requestOrientationPermission = requestOrientationPermission;
+    </script>
+</body>
+</html>
