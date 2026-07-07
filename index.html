@@ -10,7 +10,7 @@
     
     <style>
         /* ============================================================
-           RESET
+           RESET & CORE STYLES
            ============================================================ */
         * {
             margin: 0;
@@ -34,7 +34,7 @@
         }
         
         /* ============================================================
-           USER MARKER (Clean Minimal Arrow)
+           USER MARKER (Dynamic Arrow Styling)
            ============================================================ */
         .user-marker-container {
             background: none !important;
@@ -54,16 +54,16 @@
             height: 0;
             border-left: 9px solid transparent;
             border-right: 9px solid transparent;
-            border-bottom: 22px solid #007aff;
-            filter: drop-shadow(0 2px 8px rgba(0, 122, 255, 0.5));
+            border-bottom: 22px solid var(--arrow-color, #007aff);
+            filter: drop-shadow(0 2px 8px rgba(0, 122, 255, 0.4));
         }
         
         /* ============================================================
-           WAYPOINT MARKER (Pin Style)
+           WAYPOINT MARKER
            ============================================================ */
         .waypoint-pin {
-            width: 36px;
-            height: 36px;
+            width: 100%;
+            height: 100%;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -72,15 +72,15 @@
             border-radius: 50%;
             border: 2px solid rgba(255, 255, 255, 0.15);
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-            font-size: 18px;
-            transition: 0.2s ease;
+            font-size: calc(var(--pin-size, 36px) * 0.5);
+            transition: transform 0.2s ease;
         }
         .waypoint-pin:hover {
             transform: scale(1.08);
         }
         
         /* ============================================================
-           MAGNIFYING GLASS (Drag Preview)
+           MAGNIFYING GLASS
            ============================================================ */
         .magnifying-glass {
             position: fixed;
@@ -102,7 +102,6 @@
             height: 200%;
             background-size: cover;
             background-position: center;
-            image-rendering: auto;
         }
         .magnifying-glass .crosshair {
             position: absolute;
@@ -122,11 +121,10 @@
             transform: translate(-50%, -50%);
             color: rgba(255, 255, 255, 0.8);
             font-size: 16px;
-            font-weight: 300;
         }
         
         /* ============================================================
-           HUD (Glassmorphism, Minimal)
+           HUD DISPLAY
            ============================================================ */
         .hud {
             position: fixed;
@@ -145,20 +143,17 @@
             pointer-events: none;
             transition: opacity 0.4s ease;
         }
-        
         .hud-grid {
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
             gap: 4px;
             text-align: center;
         }
-        
         .hud-item {
             display: flex;
             flex-direction: column;
             align-items: center;
         }
-        
         .hud-label {
             font-size: 9px;
             text-transform: uppercase;
@@ -166,24 +161,21 @@
             color: rgba(255, 255, 255, 0.3);
             font-weight: 600;
         }
-        
         .hud-value {
             font-size: 14px;
             font-weight: 500;
             color: #fff;
-            letter-spacing: 0.02em;
             margin-top: 1px;
         }
-        
         .hud-value .dim {
             color: rgba(255, 255, 255, 0.5);
             font-size: 12px;
         }
         
         /* ============================================================
-           SIDEBAR MENU (Glassmorphism)
+           SLIDING SIDEBAR NAVIGATION SYSTEM (Apple Modal UX)
            ============================================================ */
-        .sidebar {
+        .sidebar-wrapper {
             position: fixed;
             top: 0;
             left: -300px;
@@ -195,12 +187,27 @@
             border-right: 1px solid rgba(255, 255, 255, 0.05);
             z-index: 2000;
             transition: left 0.35s cubic-bezier(0.2, 0.9, 0.3, 1);
-            padding: 80px 16px 20px 16px;
-            overflow-y: auto;
+            overflow: hidden;
+        }
+        .sidebar-wrapper.open {
+            left: 0;
         }
         
-        .sidebar.open {
-            left: 0;
+        .sidebar-scroller {
+            display: flex;
+            width: 560px; /* Width of 2 separate views */
+            height: 100%;
+            transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+        .sidebar-scroller.in-settings {
+            transform: translateX(-280px);
+        }
+        
+        .menu-view, .settings-view {
+            width: 280px;
+            height: 100%;
+            padding: 80px 16px 20px 16px;
+            overflow-y: auto;
         }
         
         .sidebar-title {
@@ -212,9 +219,21 @@
             padding-bottom: 12px;
             margin-bottom: 16px;
             font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
         
-        .sidebar button {
+        .back-link {
+            cursor: pointer;
+            color: #007aff;
+            font-weight: 500;
+            text-transform: none;
+            letter-spacing: normal;
+            font-size: 13px;
+        }
+        
+        .sidebar button, .setting-row-btn {
             display: block;
             width: 100%;
             padding: 10px 14px;
@@ -230,27 +249,22 @@
             cursor: pointer;
             transition: background 0.2s ease, color 0.2s ease;
         }
-        
-        .sidebar button:hover {
+        .sidebar button:hover, .setting-row-btn:hover {
             background: rgba(255, 255, 255, 0.05);
             color: #fff;
         }
-        
         .sidebar button.active {
             background: rgba(0, 122, 255, 0.12);
             color: #fff;
         }
-        
-        .sidebar button .badge {
+        .sidebar button .badge, .setting-row-btn .badge {
             float: right;
             font-size: 11px;
             color: rgba(255, 255, 255, 0.2);
         }
-        
         .sidebar button.active .badge {
             color: #007aff;
         }
-
         .sidebar button.danger-confirm {
             background: rgba(255, 59, 48, 0.15) !important;
             color: #ff453a !important;
@@ -260,74 +274,87 @@
             color: #ff453a !important;
         }
 
-        /* Expandable Config Wrapper (Apple Layout System) */
-        .menu-section-container {
+        /* Config list groups mimicking standard Apple menus */
+        .setting-group {
             background: rgba(255, 255, 255, 0.02);
             border-radius: 12px;
-            margin-bottom: 6px;
-            overflow: hidden;
+            padding: 4px 14px;
+            margin-bottom: 12px;
             border: 1px solid rgba(255, 255, 255, 0.02);
         }
-
-        .menu-section-container button {
-            margin-bottom: 0;
-            background: transparent;
-            border-radius: 0;
-        }
-
-        .expandable-panel {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s cubic-bezier(0.25, 1, 0.5, 1);
-            background: rgba(0, 0, 0, 0.2);
-            padding: 0 14px;
-        }
-
-        .expandable-panel.expanded {
-            max-height: 260px; /* Gives room for customizable options */
-            border-top: 1px solid rgba(255, 255, 255, 0.04);
-            padding: 12px 14px;
-        }
-
-        /* Customizable settings controls inside expanded panel */
         .control-row {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 12px;
+            padding: 10px 0;
             font-size: 13px;
-            color: rgba(255, 255, 255, 0.6);
+            color: rgba(255, 255, 255, 0.7);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
         }
         .control-row:last-child {
-            margin-bottom: 2px;
+            border-bottom: none;
         }
 
-        /* Custom Selector Segments */
+        /* Segment controller toggles */
         .segment-container {
             display: flex;
             background: rgba(255, 255, 255, 0.06);
             padding: 2px;
             border-radius: 8px;
-            width: 130px;
+            width: 120px;
         }
         .segment-btn {
             flex: 1;
-            padding: 4px 0 !important;
-            font-size: 11px !important;
-            text-align: center !important;
-            border-radius: 6px !important;
-            color: rgba(255, 255, 255, 0.4) !important;
+            padding: 4px 0;
+            font-size: 11px;
+            text-align: center;
+            border-radius: 6px;
+            color: rgba(255, 255, 255, 0.4);
+            cursor: pointer;
+            user-select: none;
         }
         .segment-btn.selected {
-            background: rgba(255, 255, 255, 0.15) !important;
-            color: #fff !important;
+            background: rgba(255, 255, 255, 0.15);
+            color: #fff;
             font-weight: 500;
         }
 
-        /* iOS-style range sliders and inputs */
+        /* iOS-Style Switches & sliders */
+        .apple-switch {
+            position: relative;
+            width: 42px;
+            height: 24px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            outline: none;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .apple-switch:checked {
+            background: #34c759;
+        }
+        .apple-switch::before {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            top: 20px;
+            top: 2px;
+            left: 2px;
+            background: #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+            transition: transform 0.2s;
+        }
+        .apple-switch:checked::before {
+            transform: translateX(18px);
+        }
+
         .apple-slider {
             -webkit-appearance: none;
-            width: 90px;
+            width: 100px;
             height: 4px;
             border-radius: 2px;
             background: rgba(255, 255, 255, 0.1);
@@ -341,28 +368,25 @@
             border-radius: 50%;
             background: #fff;
             cursor: pointer;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.4);
         }
         
         .apple-color {
             -webkit-appearance: none;
             border: none;
-            width: 28px;
-            height: 28px;
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
             cursor: pointer;
             background: transparent;
         }
-        .apple-color::-webkit-color-swatch-wrapper {
-            padding: 0;
-        }
+        .apple-color::-webkit-color-swatch-wrapper { padding: 0; }
         .apple-color::-webkit-color-swatch {
             border: 1px solid rgba(255,255,255,0.2);
             border-radius: 50%;
         }
 
         /* ============================================================
-           HAMBURGER (Clean, Minimal)
+           HAMBURGER BUTTON
            ============================================================ */
         .hamburger {
             position: fixed;
@@ -384,11 +408,7 @@
             gap: 4px;
             transition: 0.2s ease;
         }
-        
-        .hamburger:hover {
-            background: rgba(255, 255, 255, 0.06);
-        }
-        
+        .hamburger:hover { background: rgba(255, 255, 255, 0.06); }
         .hamburger .bar {
             width: 18px;
             height: 1.5px;
@@ -396,19 +416,12 @@
             border-radius: 2px;
             transition: 0.3s ease;
         }
-        
-        .hamburger.open .bar:nth-child(1) {
-            transform: rotate(-45deg) translate(-4px, 4px);
-        }
-        .hamburger.open .bar:nth-child(2) {
-            opacity: 0;
-        }
-        .hamburger.open .bar:nth-child(3) {
-            transform: rotate(45deg) translate(-4px, -4px);
-        }
+        .hamburger.open .bar:nth-child(1) { transform: rotate(-45deg) translate(-4px, 4px); }
+        .hamburger.open .bar:nth-child(2) { opacity: 0; }
+        .hamburger.open .bar:nth-child(3) { transform: rotate(45deg) translate(-4px, -4px); }
         
         /* ============================================================
-           ACTION BUTTON (Drop Waypoint - Pin Icon)
+           ACTION BUTTON (Drop Pin)
            ============================================================ */
         .action-btn {
             position: fixed;
@@ -433,57 +446,29 @@
             user-select: none;
             touch-action: none;
         }
-        
-        .action-btn:hover {
-            background: rgba(255, 255, 255, 0.12);
-            transform: scale(1.04);
-        }
-        
-        .action-btn:active {
-            cursor: grabbing;
-            transform: scale(0.92);
-        }
-        
-        .action-btn .pin-icon {
-            font-size: 28px;
-            line-height: 1;
-        }
+        .action-btn:hover { background: rgba(255, 255, 255, 0.12); transform: scale(1.04); }
+        .action-btn:active { cursor: grabbing; transform: scale(0.92); }
         
         /* ============================================================
-           MAP CONTROLS OVERRIDE
+           MAP POPUPS MOD OVERRIDES
            ============================================================ */
         .leaflet-control-layers {
             background: rgba(0, 0, 0, 0.6) !important;
             backdrop-filter: blur(20px) !important;
-            -webkit-backdrop-filter: blur(20px) !important;
             border: 1px solid rgba(255, 255, 255, 0.06) !important;
             border-radius: 12px !important;
             color: #fff !important;
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif !important;
         }
-        
-        .leaflet-control-layers label {
-            color: #fff !important;
-            font-weight: 400 !important;
-            font-size: 13px !important;
-        }
-        
-        .leaflet-control-layers-selector {
-            accent-color: #007aff !important;
-        }
-        
+        .leaflet-control-layers label { color: #fff !important; font-size: 13px !important; }
+        .leaflet-control-layers-selector { accent-color: #007aff !important; }
         .leaflet-popup-content-wrapper {
             background: rgba(0, 0, 0, 0.85) !important;
             backdrop-filter: blur(20px) !important;
             border: 1px solid rgba(255, 255, 255, 0.06) !important;
             border-radius: 12px !important;
             color: #fff !important;
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif !important;
         }
-        
-        .leaflet-popup-tip {
-            background: rgba(0, 0, 0, 0.85) !important;
-        }
+        .leaflet-popup-tip { background: rgba(0, 0, 0, 0.85) !important; }
     </style>
 </head>
 <body>
@@ -494,63 +479,94 @@
         <div class="bar"></div>
     </button>
 
-    <div class="sidebar" id="sidebar-panel">
-        <div class="sidebar-title">Menu</div>
-        
-        <button class="active" id="opt-hud" onclick="toggleOption('hud')">
-            <span>HUD Display</span>
-            <span class="badge">●</span>
-        </button>
-        
-        <button class="active" id="opt-trail" onclick="toggleOption('trail')">
-            <span>Tracking Trail</span>
-            <span class="badge">●</span>
-        </button>
+    <div class="sidebar-wrapper" id="sidebar-panel">
+        <div class="sidebar-scroller" id="sidebar-scroller">
+            
+            <div class="menu-view">
+                <div class="sidebar-title">Menu</div>
+                
+                <button class="active" id="opt-hud" onclick="toggleOption('hud')">
+                    <span>HUD Display</span>
+                    <span class="badge">●</span>
+                </button>
+                
+                <button class="active" id="opt-trail" onclick="toggleOption('trail')">
+                    <span>Tracking Trail</span>
+                    <span class="badge">●</span>
+                </button>
 
-        <div class="menu-section-container">
-            <button id="btn-style-menu" onclick="toggleStyleConfig()">
-                <span>Marker Style</span>
-                <span class="badge" id="style-badge">Pin ▾</span>
-            </button>
-            <div class="expandable-panel" id="style-config-panel">
-                <div class="control-row">
-                    <span>Type</span>
-                    <div class="segment-container">
-                        <div class="segment-btn selected" id="seg-pin" onclick="setMarkerStyle('pin')">Pin</div>
-                        <div class="segment-btn" id="seg-circle" onclick="setMarkerStyle('circle')">Circle</div>
+                <div class="setting-row-btn" onclick="navigateToSettings(true)">
+                    <span>Settings</span>
+                    <span class="badge">⚙  ›</span>
+                </div>
+
+                <button onclick="clearTrail()">
+                    <span>Clear Trail</span>
+                    <span class="badge">↺</span>
+                </button>
+                
+                <button id="btn-clear-waypoints" onclick="clearWaypoints()">
+                    <span>Clear Waypoints</span>
+                    <span class="badge">✕</span>
+                </button>
+                
+                <button onclick="centerMap()">
+                    <span>Center on Me</span>
+                    <span class="badge">⌖</span>
+                </button>
+            </div>
+
+            <div class="settings-view">
+                <div class="sidebar-title">
+                    <span>Customization</span>
+                    <span class="back-link" onclick="navigateToSettings(false)">‹ Menu</span>
+                </div>
+
+                <div class="setting-group">
+                    <div class="control-row">
+                        <span>Show Location Radius</span>
+                        <input type="checkbox" class="apple-switch" id="cfg-show-radius" checked onchange="updateArrowConfigs()">
+                    </div>
+                    <div class="control-row">
+                        <span>Arrow Color</span>
+                        <input type="color" class="apple-color" id="cfg-arrow-color" value="#007aff" oninput="updateArrowConfigs()">
                     </div>
                 </div>
-                <div id="circle-customizers" style="display: none; transition: opacity 0.2s ease;">
+
+                <div class="setting-group">
                     <div class="control-row">
-                        <span>Radius (m)</span>
-                        <input type="range" class="apple-slider" id="cfg-radius" min="5" max="100" value="20" oninput="updateCircleConfigs()">
+                        <span>Marker Type</span>
+                        <div class="segment-container">
+                            <div class="segment-btn selected" id="seg-pin" onclick="setMarkerStyle('pin')">Pin</div>
+                            <div class="segment-btn" id="seg-circle" onclick="setMarkerStyle('circle')">Circle</div>
+                        </div>
                     </div>
-                    <div class="control-row">
-                        <span>Color</span>
-                        <input type="color" class="apple-color" id="cfg-color" value="#007aff" oninput="updateCircleConfigs()">
+                    
+                    <div id="pin-size-control">
+                        <div class="control-row">
+                            <span>Pin Scale (px)</span>
+                            <input type="range" class="apple-slider" id="cfg-pin-size" min="24" max="64" value="36" oninput="updatePinConfigs()">
+                        </div>
                     </div>
-                    <div class="control-row">
-                        <span>Opacity</span>
-                        <input type="range" class="apple-slider" id="cfg-opacity" min="10" max="100" value="60" oninput="updateCircleConfigs()">
+
+                    <div id="circle-customizers" style="display: none;">
+                        <div class="control-row">
+                            <span>Radius (m)</span>
+                            <input type="range" class="apple-slider" id="cfg-radius" min="5" max="100" value="20" oninput="updateCircleConfigs()">
+                        </div>
+                        <div class="control-row">
+                            <span>Fill Color</span>
+                            <input type="color" class="apple-color" id="cfg-color" value="#007aff" oninput="updateCircleConfigs()">
+                        </div>
+                        <div class="control-row">
+                            <span>Opacity</span>
+                            <input type="range" class="apple-slider" id="cfg-opacity" min="10" max="100" value="60" oninput="updateCircleConfigs()">
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <button onclick="clearTrail()">
-            <span>Clear Trail</span>
-            <span class="badge">↺</span>
-        </button>
-        
-        <button id="btn-clear-waypoints" onclick="clearWaypoints()">
-            <span>Clear Waypoints</span>
-            <span class="badge">✕</span>
-        </button>
-        
-        <button onclick="centerMap()">
-            <span>Center on Me</span>
-            <span class="badge">⌖</span>
-        </button>
+        </div>
     </div>
 
     <div class="hud" id="data-hud">
@@ -578,12 +594,12 @@
     </div>
 
     <button class="action-btn" id="drop-btn" title="Drag to drop waypoint">
-        <span class="pin-icon">📍</span>
+        <span class="pin-icon" id="drop-btn-icon">📍</span>
     </button>
 
     <script>
         // ============================================================
-        // GLOBAL SCOPE DELETION ENGINE
+        // GLOBAL SCOPE PIPELINE EXECUTIONS
         // ============================================================
         window.deleteWaypoint = function(id) {
             const idx = waypoints.findIndex(w => w.id === id);
@@ -595,59 +611,42 @@
         };
 
         // ============================================================
-        // MAP ENGINE SETUP
+        // LEAFLET MAP LAYER INITIALIZATION
         // ============================================================
         const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-            attribution: '© CARTO',
-            maxZoom: 20
+            attribution: '© CARTO', maxZoom: 20
         });
-
         const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: '© Esri',
-            maxZoom: 19
+            attribution: '© Esri', maxZoom: 19
         });
 
         const map = L.map('map', {
-            zoomControl: false,
-            center: [0, 0],
-            zoom: 2,
-            preferCanvas: true,
-            layers: [streetLayer]
+            zoomControl: false, center: [0, 0], zoom: 2, preferCanvas: true, layers: [streetLayer]
         });
 
-        L.control.layers(
-            { "🗺️ Street": streetLayer, "🛰️ Satellite": satelliteLayer },
-            null,
-            { position: 'topright' }
-        ).addTo(map);
+        L.control.layers({ "🗺️ Street": streetLayer, "🛰️ Satellite": satelliteLayer }, null, { position: 'topright' }).addTo(map);
 
         // ============================================================
-        // APP CONFIGURATIONS & COMPONENT STATES
+        // COMPONENT INSTANCE ENGINES & PREFERENCE STATES
         // ============================================================
         let userMarker = null;
         let accuracyCircle = null;
         let isFirstLocation = true;
         let currentHeading = 0;
         let lastHeadingApplied = -1;
-
         let showHUD = true;
         let showTrail = true;
         let clearWaypointsTimeout = null;
 
-        // Waypoint Marker State Preferences
-        let markerType = 'pin'; // 'pin' or 'circle'
-        let circleConfig = {
-            radius: 20,
-            color: '#007aff',
-            opacity: 0.6
-        };
+        // Custom Variables Config Defaults
+        let markerType = 'pin';
+        let pinSize = 36;
+        let circleConfig = { radius: 20, color: '#007aff', opacity: 0.6 };
+        let arrowConfig = { showRadius: true, color: '#007aff' };
 
         let trailPoints = [];
         const trailLine = L.polyline([], {
-            color: '#007aff',
-            weight: 2.5,
-            opacity: 0.4,
-            smoothFactor: 1.5
+            color: '#007aff', weight: 2.5, opacity: 0.4, smoothFactor: 1.5
         }).addTo(map);
 
         let waypoints = [];
@@ -660,18 +659,17 @@
         const zoomContent = document.getElementById('zoom-content');
 
         // ============================================================
-        // RE-ARCHITECTED WAYPOINT RENDER ENGINE
+        // WAYPOINT RENDERING LOOP ACTIONS
         // ============================================================
         function createWaypoint(id, lat, lng) {
             if (waypoints.some(w => w.id === id)) return;
-
             let layerInstance;
 
             if (markerType === 'pin') {
                 const icon = L.divIcon({
                     html: `<div class="waypoint-pin">📍</div>`,
-                    iconSize: [36, 36],
-                    iconAnchor: [18, 36],
+                    iconSize: [pinSize, pinSize],
+                    iconAnchor: [pinSize / 2, pinSize],
                     className: ''
                 });
                 layerInstance = L.marker([lat, lng], { icon }).addTo(map);
@@ -702,16 +700,14 @@
             saveWaypoints();
         }
 
-        // Swaps running visual architecture inside live layers seamlessly
         function redrawAllWaypoints() {
             waypoints.forEach(w => {
                 map.removeLayer(w.layerInstance);
-                
                 if (markerType === 'pin') {
                     const icon = L.divIcon({
                         html: `<div class="waypoint-pin">📍</div>`,
-                        iconSize: [36, 36],
-                        iconAnchor: [18, 36],
+                        iconSize: [pinSize, pinSize],
+                        iconAnchor: [pinSize / 2, pinSize],
                         className: ''
                     });
                     w.layerInstance = L.marker([w.lat, w.lng], { icon }).addTo(map);
@@ -724,7 +720,6 @@
                         weight: 2
                     }).addTo(map);
                 }
-
                 w.layerInstance.bindPopup(`
                     <div style="font-family: -apple-system, sans-serif; text-align: center; padding: 4px 0;">
                         <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">📍 Waypoint</div>
@@ -749,29 +744,40 @@
             try {
                 const data = JSON.parse(localStorage.getItem('rulost_waypoints')) || [];
                 data.forEach(w => createWaypoint(w.id, w.lat, w.lng));
-            } catch(e) {
-                console.error(e);
+            } catch(e) { console.error(e); }
+        }
+
+        // ============================================================
+        // SIDEBAR MODAL VIEW NAVIGATION SYSTEM
+        // ============================================================
+        function navigateToSettings(shouldGoToSettings) {
+            const scroller = document.getElementById('sidebar-scroller');
+            if (shouldGoToSettings) {
+                scroller.classList.add('in-settings');
+            } else {
+                scroller.classList.remove('in-settings');
             }
         }
 
         // ============================================================
-        // CUSTOMIZATION PRESETS ENGINE
+        // RE-DOCK PARAMETER ENGINE CONTROLS
         // ============================================================
-        function toggleStyleConfig() {
-            const panel = document.getElementById('style-config-panel');
-            panel.classList.toggle('expanded');
-        }
-
         function setMarkerStyle(style) {
             markerType = style;
             document.getElementById('seg-pin').classList.toggle('selected', style === 'pin');
             document.getElementById('seg-circle').classList.toggle('selected', style === 'circle');
             
-            const customizers = document.getElementById('circle-customizers');
-            customizers.style.display = style === 'circle' ? 'block' : 'none';
+            document.getElementById('pin-size-control').style.display = style === 'pin' ? 'block' : 'none';
+            document.getElementById('circle-customizers').style.display = style === 'circle' ? 'block' : 'none';
             
-            document.getElementById('style-badge').textContent = (style === 'pin' ? 'Pin ▾' : 'Circle ▾');
+            document.getElementById('drop-btn-icon').textContent = style === 'pin' ? '📍' : '🔵';
             redrawAllWaypoints();
+        }
+
+        function updatePinConfigs() {
+            pinSize = parseInt(document.getElementById('cfg-pin-size').value, 10);
+            document.documentElement.style.setProperty('--pin-size', pinSize + 'px');
+            if (markerType === 'pin') redrawAllWaypoints();
         }
 
         function updateCircleConfigs() {
@@ -781,20 +787,34 @@
             
             if (markerType === 'circle') {
                 waypoints.forEach(w => {
-                    if(w.layerInstance.setRadius) {
+                    if (w.layerInstance.setRadius) {
                         w.layerInstance.setRadius(circleConfig.radius);
                         w.layerInstance.setStyle({
-                            color: circleConfig.color,
-                            fillColor: circleConfig.color,
-                            fillOpacity: circleConfig.opacity
+                            color: circleConfig.color, fillColor: circleConfig.color, fillOpacity: circleConfig.opacity
                         });
                     }
                 });
             }
         }
 
+        function updateArrowConfigs() {
+            arrowConfig.showRadius = document.getElementById('cfg-show-radius').checked;
+            arrowConfig.color = document.getElementById('cfg-arrow-color').value;
+            
+            // Apply arrow variable CSS colors real-time
+            document.documentElement.style.setProperty('--arrow-color', arrowConfig.color);
+            
+            if (accuracyCircle) {
+                if (arrowConfig.showRadius) {
+                    accuracyCircle.setStyle({ opacity: 1, fillOpacity: 0.06, color: arrowConfig.color, fillColor: arrowConfig.color });
+                } else {
+                    accuracyCircle.setStyle({ opacity: 0, fillOpacity: 0 });
+                }
+            }
+        }
+
         // ============================================================
-        // TRACKING & GEOLOCATION LOOPS
+        // GEOLOCATION POSITION ENGINE
         // ============================================================
         function updateLocation(lat, lng, accuracy = null) {
             coordsEl.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
@@ -808,9 +828,10 @@
             if (!accuracyCircle) {
                 accuracyCircle = L.circle([lat, lng], {
                     radius: accuracy || 20,
-                    color: '#007aff',
-                    fillColor: '#007aff',
-                    fillOpacity: 0.06,
+                    color: arrowConfig.color,
+                    fillColor: arrowConfig.color,
+                    fillOpacity: arrowConfig.showRadius ? 0.06 : 0,
+                    opacity: arrowConfig.showRadius ? 1 : 0,
                     weight: 1
                 }).addTo(map);
             } else {
@@ -822,8 +843,7 @@
                 const icon = L.divIcon({
                     className: 'user-marker-container',
                     html: `<div class="user-marker" id="arrow-element"><div class="user-arrow"></div></div>`,
-                    iconSize: [28, 28],
-                    iconAnchor: [14, 14]
+                    iconSize: [28, 28], iconAnchor: [14, 14]
                 });
                 userMarker = L.marker([lat, lng], { icon }).addTo(map);
             } else {
@@ -831,25 +851,18 @@
             }
 
             applyRotation();
-
-            if (isFirstLocation) {
-                map.setView([lat, lng], 17);
-                isFirstLocation = false;
-            }
+            if (isFirstLocation) { map.setView([lat, lng], 17); isFirstLocation = false; }
         }
 
         function applyRotation() {
             if (currentHeading === lastHeadingApplied) return;
             lastHeadingApplied = currentHeading;
-
             const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
             const idx = Math.round(((currentHeading % 360) / 45)) % 8;
             bearingEl.textContent = `${String(currentHeading).padStart(3, '0')}° ${dirs[idx]}`;
 
             const arrow = document.getElementById('arrow-element');
-            if (arrow) {
-                arrow.style.transform = `rotate(${currentHeading}deg)`;
-            }
+            if (arrow) arrow.style.transform = `rotate(${currentHeading}deg)`;
         }
 
         function handleOrientation(e) {
@@ -864,19 +877,15 @@
             if (typeof DeviceOrientationEvent.requestPermission === 'function') {
                 document.addEventListener('click', function initCompass() {
                     DeviceOrientationEvent.requestPermission().then(r => {
-                        if (r === 'granted') {
-                            window.addEventListener('deviceorientation', handleOrientation);
-                        }
+                        if (r === 'granted') window.addEventListener('deviceorientation', handleOrientation);
                     });
                     document.removeEventListener('click', initCompass);
                 });
-            } else {
-                window.addEventListener('deviceorientation', handleOrientation);
-            }
+            } else { window.addEventListener('deviceorientation', handleOrientation); }
         }
 
         // ============================================================
-        // INTERACTIVE TOUCH/MOUSE DRAG SYSTEM
+        // MAP ACTIONS & GESTURES ENGINE
         // ============================================================
         map.on('contextmenu', function(e) {
             const id = Date.now().toString();
@@ -910,12 +919,10 @@
                 zoomContent.style.backgroundImage = `url('${url}')`;
                 zoomContent.style.backgroundSize = `${tileSize * scale}px ${tileSize * scale}px`;
                 zoomContent.style.backgroundPosition = `-${(zoomedCenter.x % tileSize) * scale}px -${(zoomedCenter.y % tileSize) * scale}px`;
-            } else {
-                magGlass.style.display = 'none';
-            }
+            } else { magGlass.style.display = 'none'; }
         }
 
-        // Mobile Handlers
+        // Touch systems
         dropBtn.addEventListener('touchstart', function(e) {
             const touch = e.touches[0];
             const rect = dropBtn.getBoundingClientRect();
@@ -932,8 +939,7 @@
             dropBtn.style.position = 'fixed';
             dropBtn.style.left = (touch.clientX - offsetX) + 'px';
             dropBtn.style.top = (touch.clientY - offsetY) + 'px';
-            dropBtn.style.bottom = 'auto';
-            dropBtn.style.right = 'auto';
+            dropBtn.style.bottom = 'auto'; dropBtn.style.right = 'auto';
             updateMagnifyingGlass(touch.clientX, touch.clientY);
         }, { passive: false });
 
@@ -951,25 +957,19 @@
 
             if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
                 const latlng = map.containerPointToLatLng([x, y]);
-                const id = Date.now().toString();
-                createWaypoint(id, latlng.lat, latlng.lng);
+                createWaypoint(Date.now().toString(), latlng.lat, latlng.lng);
             }
 
-            dropBtn.style.left = '';
-            dropBtn.style.top = '';
-            dropBtn.style.position = 'fixed';
-            dropBtn.style.bottom = '40px';
-            dropBtn.style.right = '24px';
+            dropBtn.style.left = ''; dropBtn.style.top = ''; dropBtn.style.position = 'fixed'; dropBtn.style.bottom = '40px'; dropBtn.style.right = '24px';
         }, { passive: true });
 
-        // Desktop Handlers
+        // Desktop systems
         dropBtn.addEventListener('mousedown', function(e) {
             const rect = dropBtn.getBoundingClientRect();
             offsetX = e.clientX - rect.left;
             offsetY = e.clientY - rect.top;
             isDragging = true;
-            dropBtn.style.cursor = 'grabbing';
-            dropBtn.style.opacity = '0.6';
+            dropBtn.style.cursor = 'grabbing'; dropBtn.style.opacity = '0.6';
         });
 
         document.addEventListener('mousemove', function(e) {
@@ -977,16 +977,14 @@
             dropBtn.style.position = 'fixed';
             dropBtn.style.left = (e.clientX - offsetX) + 'px';
             dropBtn.style.top = (e.clientY - offsetY) + 'px';
-            dropBtn.style.bottom = 'auto';
-            dropBtn.style.right = 'auto';
+            dropBtn.style.bottom = 'auto'; dropBtn.style.right = 'auto';
             updateMagnifyingGlass(e.clientX, e.clientY);
         });
 
         document.addEventListener('mouseup', function(e) {
             if (!isDragging) return;
             isDragging = false;
-            dropBtn.style.cursor = 'grab';
-            dropBtn.style.opacity = '1';
+            dropBtn.style.cursor = 'grab'; dropBtn.style.opacity = '1';
             magGlass.style.display = 'none';
 
             const mapContainer = map.getContainer();
@@ -996,38 +994,32 @@
 
             if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
                 const latlng = map.containerPointToLatLng([x, y]);
-                const id = Date.now().toString();
-                createWaypoint(id, latlng.lat, latlng.lng);
+                createWaypoint(Date.now().toString(), latlng.lat, latlng.lng);
             }
 
-            dropBtn.style.left = '';
-            dropBtn.style.top = '';
-            dropBtn.style.position = 'fixed';
-            dropBtn.style.bottom = '40px';
-            dropBtn.style.right = '24px';
+            dropBtn.style.left = ''; dropBtn.style.top = ''; dropBtn.style.position = 'fixed'; dropBtn.style.bottom = '40px'; dropBtn.style.right = '24px';
         });
 
-        // Bootstrap Map
+        // Bootstrap Core Startup loops
         loadWaypoints();
 
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition(
                 pos => updateLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
-                err => { coordsEl.textContent = 'No GPS'; },
-                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+                err => { coordsEl.textContent = 'No GPS'; }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
             );
-        } else {
-            coordsEl.textContent = 'No GPS';
-        }
+        } else { coordsEl.textContent = 'No GPS'; }
 
         // ============================================================
-        // MENU PANEL CORE ACTIONS
+        // CONTAINER SIDEBAR UX CONTROLS
         // ============================================================
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar-panel');
             const trigger = document.getElementById('menu-btn');
             sidebar.classList.toggle('open');
             trigger.classList.toggle('open');
+            // Reset modal depth back to main menu automatically on close
+            if (!sidebar.classList.contains('open')) navigateToSettings(false);
         }
 
         function toggleOption(type) {
@@ -1038,19 +1030,12 @@
                 btn.classList.toggle('active', showHUD);
             } else if (type === 'trail') {
                 showTrail = !showTrail;
-                if (showTrail) {
-                    trailLine.setLatLngs(trailPoints);
-                } else {
-                    trailLine.setLatLngs([]);
-                }
+                if (showTrail) { trailLine.setLatLngs(trailPoints); } else { trailLine.setLatLngs([]); }
                 btn.classList.toggle('active', showTrail);
             }
         }
 
-        function clearTrail() {
-            trailPoints = [];
-            trailLine.setLatLngs([]);
-        }
+        function clearTrail() { trailPoints = []; trailLine.setLatLngs([]); }
 
         function clearWaypoints() {
             const btn = document.getElementById('btn-clear-waypoints');
@@ -1059,7 +1044,6 @@
                 waypoints.forEach(w => map.removeLayer(w.layerInstance));
                 waypoints = [];
                 saveWaypoints();
-                
                 btn.classList.remove('danger-confirm');
                 btn.querySelector('span:first-child').textContent = 'Clear Waypoints';
                 btn.querySelector('.badge').textContent = '✕';
@@ -1067,7 +1051,6 @@
                 btn.classList.add('danger-confirm');
                 btn.querySelector('span:first-child').textContent = 'Are you sure?';
                 btn.querySelector('.badge').textContent = '●';
-                
                 clearWaypointsTimeout = setTimeout(() => {
                     btn.classList.remove('danger-confirm');
                     btn.querySelector('span:first-child').textContent = 'Clear Waypoints';
@@ -1083,15 +1066,17 @@
             }
         }
 
-        // Attach layout actions to Global space
+        // Map global space hook attachments
         window.toggleSidebar = toggleSidebar;
         window.toggleOption = toggleOption;
         window.clearTrail = clearTrail;
         window.clearWaypoints = clearWaypoints;
         window.centerMap = centerMap;
-        window.toggleStyleConfig = toggleStyleConfig;
+        window.navigateToSettings = navigateToSettings;
         window.setMarkerStyle = setMarkerStyle;
+        window.updatePinConfigs = updatePinConfigs;
         window.updateCircleConfigs = updateCircleConfigs;
+        window.updateArrowConfigs = updateArrowConfigs;
     </script>
 </body>
 </html>
