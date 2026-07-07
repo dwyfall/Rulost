@@ -441,6 +441,18 @@
 
     <script>
         // ============================================================
+        // GLOBAL SCOPE FUNCTIONS DEFINED FIRST
+        // ============================================================
+        window.deleteWaypoint = function(id) {
+            const idx = waypoints.findIndex(w => w.id === id);
+            if (idx !== -1) {
+                map.removeLayer(waypoints[idx].marker);
+                waypoints.splice(idx, 1);
+                saveWaypoints();
+            }
+        };
+
+        // ============================================================
         // MAP
         // ============================================================
         const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
@@ -488,12 +500,6 @@
         }).addTo(map);
 
         let waypoints = [];
-        try {
-            const savedData = JSON.parse(localStorage.getItem('rulost_waypoints')) || [];
-            // We only grab data properties, instances are handled by loadWaypoints
-        } catch (e) {
-            console.error(e);
-        }
 
         const coordsEl = document.getElementById('coords');
         const accuracyEl = document.getElementById('accuracy');
@@ -521,7 +527,7 @@
                     <div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 8px;">
                         ${lat.toFixed(5)}, ${lng.toFixed(5)}
                     </div>
-                    <button onclick="deleteWaypoint('${id}')" 
+                    <button onclick="window.deleteWaypoint('${id}')" 
                         style="background: #ff3b30; color: #fff; border: none; padding: 6px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;">
                         Delete
                     </button>
@@ -536,15 +542,6 @@
             const data = waypoints.map(w => ({ id: w.id, lat: w.lat, lng: w.lng }));
             localStorage.setItem('rulost_waypoints', JSON.stringify(data));
         }
-
-        window.deleteWaypoint = function(id) {
-            const idx = waypoints.findIndex(w => w.id === id);
-            if (idx !== -1) {
-                map.removeLayer(waypoints[idx].marker);
-                waypoints.splice(idx, 1);
-                saveWaypoints();
-            }
-        };
 
         function loadWaypoints() {
             try {
@@ -700,7 +697,6 @@
             if (!isDragging) return;
             e.preventDefault();
             const touch = e.touches[0];
-            // Move the button with finger
             dropBtn.style.position = 'fixed';
             dropBtn.style.left = (touch.clientX - offsetX) + 'px';
             dropBtn.style.top = (touch.clientY - offsetY) + 'px';
@@ -727,7 +723,6 @@
                 createWaypoint(id, latlng.lat, latlng.lng);
             }
 
-            // CRITICAL FIX: Strip left/top completely so CSS fallback positioning hooks back up
             dropBtn.style.left = '';
             dropBtn.style.top = '';
             dropBtn.style.position = 'fixed';
@@ -773,7 +768,6 @@
                 createWaypoint(id, latlng.lat, latlng.lng);
             }
 
-            // CRITICAL FIX: Strip left/top completely so CSS fallback positioning hooks back up
             dropBtn.style.left = '';
             dropBtn.style.top = '';
             dropBtn.style.position = 'fixed';
@@ -781,7 +775,7 @@
             dropBtn.style.right = '24px';
         });
 
-        // Load saved waypoints
+        // Load saved waypoints safely
         loadWaypoints();
 
         // ============================================================
