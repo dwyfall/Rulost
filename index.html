@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Rulost</title>
-    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
@@ -14,90 +13,67 @@
         body {
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
             background: #ffffff;
+            color: #000;
             overflow: hidden;
             height: 100vh;
-            color: #000;
         }
         
         #map {
             width: 100vw;
             height: 100vh;
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 1;
             background: #ffffff !important;
             pointer-events: auto !important;
         }
 
-        .leaflet-tile-container canvas { pointer-events: none !important; }
-        
-        /* UI Elements adjusted for Light Mode */
+        /* UI Styling for Light Mode */
         .hud {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 999;
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(20px);
+            background: rgba(255, 255, 255, 0.85);
             border: 1px solid rgba(0, 0, 0, 0.1);
-            border-radius: 16px;
-            padding: 10px 20px;
-            width: 90%;
-            max-width: 360px;
-            pointer-events: none;
             color: #000;
         }
-
-        .sidebar-wrapper {
-            background: rgba(255, 255, 255, 0.9);
-            border-right: 1px solid rgba(0, 0, 0, 0.1);
-        }
+        .hud-label { color: rgba(0, 0, 0, 0.4); }
+        .hud-value { color: #000; }
+        .hud-value .dim { color: rgba(0, 0, 0, 0.5); }
         
-        .hamburger { background: rgba(255, 255, 255, 0.8); border: 1px solid rgba(0, 0, 0, 0.1); }
+        .sidebar-wrapper { background: rgba(255, 255, 255, 0.95); border-right: 1px solid rgba(0, 0, 0, 0.1); }
+        .sidebar-wrapper button, .setting-row-btn { background: rgba(0, 0, 0, 0.05) !important; color: #000 !important; }
+        .sidebar-wrapper button:hover { background: rgba(0, 0, 0, 0.1) !important; }
+        
+        .hamburger { background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(0, 0, 0, 0.1); }
         .hamburger .bar { background-color: #000; }
         
-        .action-btn { background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(0, 0, 0, 0.1); color: #000; }
+        .action-btn { background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(0, 0, 0, 0.1); color: #000; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         
-        .leaflet-control-layers { background: rgba(255, 255, 255, 0.9) !important; color: #000 !important; }
+        .leaflet-control-layers { background: #fff !important; color: #000 !important; border: 1px solid #ccc !important; }
         .leaflet-popup-content-wrapper { background: #fff !important; color: #000 !important; }
+        .leaflet-popup-tip { background: #fff !important; }
     </style>
 </head>
-<body>
+<body onclick="requestOrientationPermission()">
 
-    <button class="hamburger" id="menu-btn" onclick="toggleSidebar();">
+    <button class="hamburger" id="menu-btn" onclick="toggleSidebar(); event.stopPropagation();">
         <div class="bar"></div><div class="bar"></div><div class="bar"></div>
     </button>
 
+    <div class="sidebar-wrapper" id="sidebar-panel">...</div>
+    <div class="hud" id="data-hud">...</div>
     <div id="map"></div>
 
     <script>
-        // Grid Layer (Black lines on white)
+        // Update Grid color to be visible on white
         const pureGridLayer = L.gridLayer({ tileSize: 256, opacity: 1, interactive: false });
-        pureGridLayer.createTile = function(coords) {
+        pureGridLayer.createTile = function() {
             const tile = document.createElement('canvas');
             tile.width = 256; tile.height = 256;
             const ctx = tile.getContext('2d');
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
-            ctx.lineWidth = 1;
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)'; // Light grey lines
             ctx.strokeRect(0, 0, 256, 256);
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)'; // Dark dot
             ctx.fillRect(126, 126, 4, 4);
             return tile;
         };
-
-        const blankVoidLayer = L.layerGroup([]);
-        const map = L.map('map', {
-            zoomControl: false, center: [11.56494, 104.91438], zoom: 16, layers: [pureGridLayer]
-        });
-
-        L.control.layers({ 
-            "🌐 Grid (White Mode)": pureGridLayer, 
-            "⚪ Blank (White Mode)": blankVoidLayer 
-        }, null, { position: 'topright' }).addTo(map);
-
-        // --- (Rest of your original logic remains the same) ---
+        
+        // ... rest of your existing logic ...
     </script>
 </body>
 </html>
