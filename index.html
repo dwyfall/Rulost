@@ -36,6 +36,12 @@
             left: 0;
             z-index: 1;
             background: #000 !important; /* Force true black map container */
+            pointer-events: auto !important;
+        }
+
+        /* FIX: Prevents the pure canvas grid from blocking map clicks/drags */
+        .leaflet-tile-container canvas {
+            pointer-events: none !important;
         }
         
         .user-marker-container {
@@ -244,11 +250,6 @@
         .sidebar-wrapper button.active {
             background: rgba(0, 122, 255, 0.15) !important;
             color: #fff !important;
-        }
-        .sidebar-wrapper button .badge, .setting-row-btn .badge {
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.3) !important;
-            flex-shrink: 0 !important;
         }
         .sidebar-wrapper button.active .badge {
             color: #007aff !important;
@@ -585,7 +586,7 @@
         const blankVoidLayer = L.layerGroup([]);
 
         // Custom Canvas Grid Layer Layer (Pure lines over absolute dark void)
-        const pureGridLayer = L.gridLayer({ tileSize: 256, opacity: 0.35 });
+        const pureGridLayer = L.gridLayer({ tileSize: 256, opacity: 0.35, interactive: false });
         pureGridLayer.createTile = function(coords) {
             const tile = document.createElement('canvas');
             tile.width = 256; tile.height = 256;
