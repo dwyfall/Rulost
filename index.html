@@ -60,6 +60,27 @@
         }
         
         /* ============================================================
+           WAYPOINT MARKER (Magnifying Glass + Pin)
+           ============================================================ */
+        .waypoint-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(12px);
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+            font-size: 18px;
+            transition: 0.2s ease;
+        }
+        .waypoint-icon:hover {
+            transform: scale(1.08);
+        }
+        
+        /* ============================================================
            HUD (Glassmorphism, Minimal)
            ============================================================ */
         .hud {
@@ -252,12 +273,14 @@
             color: #fff;
             font-size: 28px;
             font-weight: 300;
-            cursor: pointer;
+            cursor: grab;
             transition: 0.2s ease;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
             display: flex;
             align-items: center;
             justify-content: center;
+            user-select: none;
+            touch-action: none;
         }
         
         .action-btn:hover {
@@ -266,6 +289,7 @@
         }
         
         .action-btn:active {
+            cursor: grabbing;
             transform: scale(0.92);
         }
         
@@ -425,6 +449,30 @@
         const hudEl = document.getElementById('data-hud');
 
         // ============================================================
+        // WAYPOINT ICON (Magnifying Glass + Pin)
+        // ============================================================
+        function createWaypointIcon() {
+            const div = document.createElement('div');
+            div.className = 'waypoint-icon';
+            div.innerHTML = '🔍📍';
+            div.style.cssText = `
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 36px;
+                height: 36px;
+                background: rgba(255, 255, 255, 0.08);
+                backdrop-filter: blur(12px);
+                border-radius: 50%;
+                border: 2px solid rgba(255, 255, 255, 0.15);
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+                font-size: 18px;
+                transition: 0.2s ease;
+            `;
+            return div;
+        }
+
+        // ============================================================
         // LOCATION
         // ============================================================
         function updateLocation(lat, lng, accuracy = null) {
@@ -516,13 +564,15 @@
         // WAYPOINTS
         // ============================================================
         function createWaypoint(id, lat, lng) {
-            const marker = L.circleMarker([lat, lng], {
-                radius: 8,
-                fillColor: '#ff3b30',
-                color: '#fff',
-                weight: 2,
-                fillOpacity: 1
-            }).addTo(map);
+            // Custom icon with magnifying glass + pin
+            const icon = L.divIcon({
+                html: `<div class="waypoint-icon">🔍📍</div>`,
+                iconSize: [36, 36],
+                iconAnchor: [18, 36],
+                className: ''
+            });
+
+            const marker = L.marker([lat, lng], { icon }).addTo(map);
 
             marker.bindPopup(`
                 <div style="font-family: -apple-system, sans-serif; text-align: center; padding: 4px 0;">
@@ -557,13 +607,13 @@
 
         function loadWaypoints() {
             waypoints.forEach(w => {
-                const marker = L.circleMarker([w.lat, w.lng], {
-                    radius: 8,
-                    fillColor: '#ff3b30',
-                    color: '#fff',
-                    weight: 2,
-                    fillOpacity: 1
-                }).addTo(map);
+                const icon = L.divIcon({
+                    html: `<div class="waypoint-icon">🔍📍</div>`,
+                    iconSize: [36, 36],
+                    iconAnchor: [18, 36],
+                    className: ''
+                });
+                const marker = L.marker([w.lat, w.lng], { icon }).addTo(map);
                 marker.bindPopup(`
                     <div style="font-family: -apple-system, sans-serif; text-align: center; padding: 4px 0;">
                         <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">📍 Waypoint</div>
@@ -581,15 +631,23 @@
         }
 
         // ============================================================
-        // DROP WAYPOINT (Click on map)
+        // DROP WAYPOINT METHODS
         // ============================================================
+
+        // 1. Right-click on map (PC)
+        map.on('contextmenu', function(e) {
+            const id = Date.now().toString();
+            createWaypoint(id, e.latlng.lat, e.latlng.lng);
+        });
+
+        // 2. Click on map (left-click)
         map.on('click', function(e) {
             if (e.originalEvent.target.closest('.leaflet-control')) return;
             const id = Date.now().toString();
             createWaypoint(id, e.latlng.lat, e.latlng.lng);
         });
 
-        // Drop button
+        // 3. Drop button (tap to drop at current location)
         document.getElementById('drop-btn').addEventListener('click', function() {
             if (userMarker) {
                 const pos = userMarker.getLatLng();
@@ -598,6 +656,91 @@
             } else {
                 alert('Waiting for GPS...');
             }
+        });
+
+        // 4. Drag-and-drop pin (mobile + PC)
+        const dropBtn = document.getElementById('drop-btn');
+        let isDragging = false;
+        let dragStartX, dragStartY;
+
+        // Touch events (mobile)
+        dropBtn.addEventListener('touchstart', function(e) {
+            const touch = e.touches[0];
+            dragStartX = touch.clientX;
+            dragStartY = touch.clientY;
+            isDragging = true;
+        }, { passive: true });
+
+        dropBtn.addEventListener('touchmove', function(e) {
+            if (!isDragging) return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            // Update button position to follow finger
+            dropBtn.style.position = 'fixed';
+            dropBtn.style.left = (touch.clientX - 28) + 'px';
+            dropBtn.style.top = (touch.clientY - 28) + 'px';
+            dropBtn.style.bottom = 'auto';
+            dropBtn.style.right = 'auto';
+        }, { passive: false });
+
+        dropBtn.addEventListener('touchend', function(e) {
+            if (!isDragging) return;
+            isDragging = false;
+            // Drop waypoint at the map location under the finger
+            const touch = e.changedTouches[0];
+            const mapContainer = map.getContainer();
+            const rect = mapContainer.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            const latlng = map.containerPointToLatLng([x, y]);
+            const id = Date.now().toString();
+            createWaypoint(id, latlng.lat, latlng.lng);
+            // Reset button position
+            dropBtn.style.position = 'fixed';
+            dropBtn.style.bottom = '40px';
+            dropBtn.style.right = '24px';
+            dropBtn.style.left = 'auto';
+            dropBtn.style.top = 'auto';
+        }, { passive: true });
+
+        // Mouse events (PC drag)
+        dropBtn.addEventListener('mousedown', function(e) {
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+            isDragging = true;
+            dropBtn.style.cursor = 'grabbing';
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isDragging) return;
+            dropBtn.style.position = 'fixed';
+            dropBtn.style.left = (e.clientX - 28) + 'px';
+            dropBtn.style.top = (e.clientY - 28) + 'px';
+            dropBtn.style.bottom = 'auto';
+            dropBtn.style.right = 'auto';
+        });
+
+        document.addEventListener('mouseup', function(e) {
+            if (!isDragging) return;
+            isDragging = false;
+            dropBtn.style.cursor = 'grab';
+            // Drop waypoint at the map location under the cursor
+            const mapContainer = map.getContainer();
+            const rect = mapContainer.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            // Check if cursor is over the map
+            if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+                const latlng = map.containerPointToLatLng([x, y]);
+                const id = Date.now().toString();
+                createWaypoint(id, latlng.lat, latlng.lng);
+            }
+            // Reset button position
+            dropBtn.style.position = 'fixed';
+            dropBtn.style.bottom = '40px';
+            dropBtn.style.right = '24px';
+            dropBtn.style.left = 'auto';
+            dropBtn.style.top = 'auto';
         });
 
         // Load saved waypoints
@@ -688,6 +831,8 @@
         console.log('🧭 Rulost loaded');
         console.log(`📍 ${waypoints.length} waypoints saved`);
         console.log('⌨️ C = center, + = drop waypoint');
+        console.log('🖱️ Right-click to drop waypoint');
+        console.log('📱 Drag the + button to drop a pin anywhere');
     </script>
 </body>
 </html>
