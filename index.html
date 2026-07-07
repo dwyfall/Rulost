@@ -231,7 +231,7 @@
             font-weight: 400;
             text-align: left;
             cursor: pointer;
-            transition: 0.15s ease;
+            transition: background 0.2s ease, color 0.2s ease;
         }
         
         .sidebar button:hover {
@@ -252,6 +252,16 @@
         
         .sidebar button.active .badge {
             color: #007aff;
+        }
+
+        /* Destructive action / Confirm state overrides */
+        .sidebar button.danger-confirm {
+            background: rgba(255, 59, 48, 0.15) !important;
+            color: #ff453a !important;
+            font-weight: 500;
+        }
+        .sidebar button.danger-confirm .badge {
+            color: #ff453a !important;
         }
         
         /* ============================================================
@@ -401,7 +411,7 @@
             <span>Clear Trail</span>
             <span class="badge">↺</span>
         </button>
-        <button onclick="clearWaypoints()">
+        <button id="btn-clear-waypoints" onclick="clearWaypoints()">
             <span>Clear Waypoints</span>
             <span class="badge">✕</span>
         </button>
@@ -453,7 +463,7 @@
         };
 
         // ============================================================
-        // MAP
+        // MAP SETUP
         // ============================================================
         const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
             attribution: '© CARTO',
@@ -490,6 +500,7 @@
 
         let showHUD = true;
         let showTrail = true;
+        let clearWaypointsTimeout = null;
 
         let trailPoints = [];
         const trailLine = L.polyline([], {
@@ -509,9 +520,12 @@
         const zoomContent = document.getElementById('zoom-content');
 
         // ============================================================
-        // WAYPOINT MARKER
+        // WAYPOINT LOGIC
         // ============================================================
         function createWaypoint(id, lat, lng) {
+            // Safety: Check if waypoint ID is already in the array to prevent duplication loops
+            if (waypoints.some(w => w.id === id)) return;
+
             const icon = L.divIcon({
                 html: `<div class="waypoint-pin">📍</div>`,
                 iconSize: [36, 36],
@@ -555,7 +569,7 @@
         }
 
         // ============================================================
-        // LOCATION
+        // LOCATION ENGINE
         // ============================================================
         function updateLocation(lat, lng, accuracy = null) {
             coordsEl.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
@@ -600,7 +614,7 @@
         }
 
         // ============================================================
-        // COMPASS
+        // COMPASS ENGINE
         // ============================================================
         function applyRotation() {
             if (currentHeading === lastHeadingApplied) return;
@@ -640,16 +654,13 @@
         }
 
         // ============================================================
-        // DROP WAYPOINT (Right-click only for PC)
+        // MAP GESTURES & DRAG CONTROLS
         // ============================================================
         map.on('contextmenu', function(e) {
             const id = Date.now().toString();
             createWaypoint(id, e.latlng.lat, e.latlng.lng);
         });
 
-        // ============================================================
-        // DRAG-AND-DROP PIN (Fixed position restoration)
-        // ============================================================
         const dropBtn = document.getElementById('drop-btn');
         let isDragging = false;
         let offsetX = 0, offsetY = 0;
@@ -665,7 +676,6 @@
                 magGlass.style.left = clientX + 'px';
                 magGlass.style.top = (clientY - 60) + 'px';
 
-                // Update zoom preview
                 const latlng = map.containerPointToLatLng([x, y]);
                 const zoomedCenter = map.project(latlng, map.getZoom() + 2);
                 const tileSize = 256;
@@ -683,7 +693,7 @@
             }
         }
 
-        // Touch events (mobile)
+        // Mobile gestures
         dropBtn.addEventListener('touchstart', function(e) {
             const touch = e.touches[0];
             const rect = dropBtn.getBoundingClientRect();
@@ -730,7 +740,7 @@
             dropBtn.style.right = '24px';
         }, { passive: true });
 
-        // Mouse events (PC drag)
+        // PC drag events
         dropBtn.addEventListener('mousedown', function(e) {
             const rect = dropBtn.getBoundingClientRect();
             offsetX = e.clientX - rect.left;
@@ -775,12 +785,9 @@
             dropBtn.style.right = '24px';
         });
 
-        // Load saved waypoints safely
+        // Initialize state
         loadWaypoints();
 
-        // ============================================================
-        // GPS
-        // ============================================================
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition(
                 pos => updateLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
@@ -792,7 +799,7 @@
         }
 
         // ============================================================
-        // SIDEBAR
+        // SIDEBAR CONTROLS
         // ============================================================
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar-panel');
@@ -823,11 +830,34 @@
             trailLine.setLatLngs([]);
         }
 
+        // Minimal Two-Stage Action (No prompt alert window)
         function clearWaypoints() {
-            if (confirm('Delete all waypoints?')) {
+            const btn = document.getElementById('btn-clear-waypoints');
+            
+            // Check if it's already in the confirmation state
+            if (btn.classList.contains('danger-confirm')) {
+                // Perform execution action
+                clearTimeout(clearWaypointsTimeout);
                 waypoints.forEach(w => map.removeLayer(w.marker));
                 waypoints = [];
                 saveWaypoints();
+                
+                // Revert look back to minimal defaults
+                btn.classList.remove('danger-confirm');
+                btn.querySelector('span:first-child').textContent = 'Clear Waypoints';
+                btn.querySelector('.badge').textContent = '✕';
+            } else {
+                // Switch to confirm mode
+                btn.classList.add('danger-confirm');
+                btn.querySelector('span:first-child').textContent = 'Are you sure?';
+                btn.querySelector('.badge').textContent = '●';
+                
+                // Fallback reset if user forgets to tap again within 3s
+                clearWaypointsTimeout = setTimeout(() => {
+                    btn.classList.remove('danger-confirm');
+                    btn.querySelector('span:first-child').textContent = 'Clear Waypoints';
+                    btn.querySelector('.badge').textContent = '✕';
+                }, 3000);
             }
         }
 
