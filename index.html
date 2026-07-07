@@ -21,7 +21,7 @@
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
-            background: #fff;
+            background: #000;
             overflow: hidden;
             height: 100vh;
             color: #fff;
@@ -35,7 +35,7 @@
             top: 0;
             left: 0;
             z-index: 1;
-            background: #ffffff !important; 
+            background: #000 !important; /* Force true black map container */
             pointer-events: auto !important;
         }
 
@@ -585,16 +585,16 @@
         // Custom Blank Void Layer
         const blankVoidLayer = L.layerGroup([]);
 
-        // Custom Canvas Grid Layer (Pure lines over absolute white void)
+        // Custom Canvas Grid Layer Layer (Pure lines over absolute dark void)
         const pureGridLayer = L.gridLayer({ tileSize: 256, opacity: 0.35, interactive: false });
         pureGridLayer.createTile = function(coords) {
             const tile = document.createElement('canvas');
             tile.width = 256; tile.height = 256;
             const ctx = tile.getContext('2d');
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)';
+            ctx.strokeStyle = 'rgba(0, 122, 255, 0.45)';
             ctx.lineWidth = 0.6;
             ctx.strokeRect(0, 0, 256, 256);
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+            ctx.fillStyle = 'rgba(0, 122, 255, 0.25)';
             ctx.fillRect(126, 126, 4, 4);
             return tile;
         };
@@ -818,4 +818,229 @@
             currentHeading += diff * 0.22;
             currentHeading = (currentHeading + 360) % 360;
 
-            document.document
+            document.documentElement.style.setProperty('--arrow-rotation', `${Math.round(currentHeading)}deg`);
+
+            if(bearingEl) {
+                const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+                const idx = Math.round(((currentHeading % 360) / 45)) % 8;
+                bearingEl.textContent = `${String(Math.round(currentHeading)).padStart(3, '0')}° ${dirs[idx]}`;
+            }
+            requestAnimationFrame(runEngineLoop);
+        }
+        requestAnimationFrame(runEngineLoop);
+
+        function handleOrientation(e) {
+            let heading = e.webkitCompassHeading ?? (e.alpha !== null ? 360 - e.alpha : null);
+            if (heading !== null && heading !== undefined) {
+                targetHeading = Math.round(heading);
+            }
+        }
+
+        function requestOrientationPermission() {
+            if (compassAttached) return;
+            if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            window.addEventListener('deviceorientation', handleOrientation, true);
+                            compassAttached = true;
+                        }
+                    }).catch(console.error);
+            } else if (window.DeviceOrientationEvent) {
+                window.addEventListener('deviceorientation', handleOrientation, true);
+                compassAttached = true;
+            }
+        }
+
+        function updateLocation(lat, lng, accuracy = null) {
+            if(coordsEl) coordsEl.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            if(accuracyEl) accuracyEl.textContent = accuracy ? `±${Math.round(accuracy)}m` : '---';
+
+            if (showTrail && (trailPoints.length === 0 || L.latLng(trailPoints[trailPoints.length - 1]).distanceTo([lat, lng]) > 1)) {
+                trailPoints.push([lat, lng]);
+                trailLine.setLatLngs(trailPoints);
+            }
+
+            if (!accuracyCircle) {
+                accuracyCircle = L.circle([lat, lng], { radius: accuracy || 15, color: arrowConfig.color, fillColor: arrowConfig.color, fillOpacity: arrowConfig.showRadius ? 0.06 : 0, opacity: arrowConfig.showRadius ? 1 : 0, weight: 1 }).addTo(map);
+            } else {
+                accuracyCircle.setLatLng([lat, lng]);
+                if (accuracy) accuracyCircle.setRadius(accuracy);
+            }
+
+            if (!userMarker) {
+                const icon = L.divIcon({
+                    className: 'user-marker-container',
+                    html: `<div class="user-marker"><div class="user-arrow"></div></div>`,
+                    iconSize: [28, 28], iconAnchor: [14, 14]
+                });
+                userMarker = L.marker([lat, lng], { icon }).addTo(map);
+            } else { userMarker.setLatLng([lat, lng]); }
+
+            if (isFirstLocation) { map.setView([lat, lng], 17); isFirstLocation = false; }
+        }
+
+        map.on('contextmenu', function(e) {
+            createWaypoint(Date.now().toString(), e.latlng.lat, e.latlng.lng);
+        });
+
+        const dropBtn = document.getElementById('drop-btn');
+        let isDragging = false;
+        let offsetX = 0, offsetY = 0;
+
+        function updateMagnifyingGlass(clientX, clientY) {
+            const mapContainer = map.getContainer();
+            const rect = mapContainer.getBoundingClientRect();
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+
+            if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+                magGlass.style.display = 'block';
+                magGlass.style.left = clientX + 'px';
+                magGlass.style.top = (clientY - 60) + 'px';
+
+                const latlng = map.containerPointToLatLng([x, y]);
+                const zoomedCenter = map.project(latlng, map.getZoom() + 2);
+                const tileSize = 256; const scale = 2;
+                const baseUrl = 'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
+                const url = baseUrl.replace('{z}', map.getZoom() + 2).replace('{x}', Math.floor(zoomedCenter.x / tileSize)).replace('{y}', Math.floor(zoomedCenter.y / tileSize));
+                zoomContent.style.backgroundImage = `url('${url}')`;
+                zoomContent.style.backgroundSize = `${tileSize * scale}px ${tileSize * scale}px`;
+                zoomContent.style.backgroundPosition = `-${(zoomedCenter.x % tileSize) * scale}px -${(zoomedCenter.y % tileSize) * scale}px`;
+            } else { magGlass.style.display = 'none'; }
+        }
+
+        dropBtn.addEventListener('mousedown', function(e) {
+            const rect = dropBtn.getBoundingClientRect();
+            offsetX = e.clientX - rect.left; offsetY = e.clientY - rect.top;
+            isDragging = true; dropBtn.style.cursor = 'grabbing'; dropBtn.style.opacity = '0.6';
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isDragging) return;
+            dropBtn.style.position = 'fixed'; dropBtn.style.left = (e.clientX - offsetX) + 'px'; dropBtn.style.top = (e.clientY - offsetY) + 'px';
+            dropBtn.style.bottom = 'auto'; dropBtn.style.right = 'auto';
+            updateMagnifyingGlass(e.clientX, e.clientY);
+        });
+
+        document.addEventListener('mouseup', function(e) {
+            if (!isDragging) return; isDragging = false;
+            dropBtn.style.cursor = 'grab'; dropBtn.style.opacity = '1'; magGlass.style.display = 'none';
+            const rect = map.getContainer().getBoundingClientRect();
+            const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+
+            if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+                const latlng = map.containerPointToLatLng([x, y]);
+                createWaypoint(Date.now().toString(), latlng.lat, latlng.lng);
+            }
+            dropBtn.style.left = ''; dropBtn.style.top = ''; dropBtn.style.position = 'fixed'; dropBtn.style.bottom = '40px'; dropBtn.style.right = '24px';
+        });
+
+        dropBtn.addEventListener('touchstart', function(e) {
+            const touch = e.touches[0];
+            const rect = dropBtn.getBoundingClientRect();
+            offsetX = touch.clientX - rect.left; offsetY = touch.clientY - rect.top;
+            isDragging = true; dropBtn.style.opacity = '0.6';
+        }, { passive: true });
+
+        document.addEventListener('touchmove', function(e) {
+            if (!isDragging) return; e.preventDefault();
+            const touch = e.touches[0];
+            dropBtn.style.position = 'fixed'; dropBtn.style.left = (touch.clientX - offsetX) + 'px'; dropBtn.style.top = (touch.clientY - offsetY) + 'px';
+            dropBtn.style.bottom = 'auto'; dropBtn.style.right = 'auto';
+            updateMagnifyingGlass(touch.clientX, touch.clientY);
+        }, { passive: false });
+
+        document.addEventListener('touchend', function(e) {
+            if (!isDragging) return; isDragging = false;
+            dropBtn.style.opacity = '1'; magGlass.style.display = 'none';
+            const touch = e.changedTouches[0];
+            const mapContainer = map.getContainer();
+            const rect = mapContainer.getBoundingClientRect();
+            const x = touch.clientX - rect.left; const y = touch.clientY - rect.top;
+
+            if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+                const latlng = map.containerPointToLatLng([x, y]);
+                createWaypoint(Date.now().toString(), latlng.lat, latlng.lng);
+            }
+            dropBtn.style.left = ''; dropBtn.style.top = ''; dropBtn.style.position = 'fixed'; dropBtn.style.bottom = '40px'; dropBtn.style.right = '24px';
+        }, { passive: true });
+
+        loadSettings();
+        applyStoredSettingsToDOM();
+        loadWaypoints();
+
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(
+                pos => updateLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
+                err => {}, { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+            );
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar-panel');
+            const trigger = document.getElementById('menu-btn');
+            if(sidebar && trigger) {
+                sidebar.classList.toggle('open');
+                trigger.classList.toggle('open');
+                if (!sidebar.classList.contains('open')) navigateToSettings(false);
+            }
+        }
+
+        function toggleOption(type) {
+            const btn = document.getElementById(`opt-${type}`);
+            if (type === 'hud') {
+                showHUD = !showHUD;
+                if(hudEl) hudEl.style.opacity = showHUD ? '1' : '0';
+                if(btn) btn.classList.toggle('active', showHUD);
+            } else if (type === 'trail') {
+                showTrail = !showTrail;
+                if (showTrail) { trailLine.setLatLngs(trailPoints); } else { trailLine.setLatLngs([]); }
+                if(btn) btn.classList.toggle('active', showTrail);
+            }
+            saveSettings();
+        }
+
+        function clearTrail() { trailPoints = []; trailLine.setLatLngs([]); }
+
+        function clearWaypoints() {
+            const btn = document.getElementById('btn-clear-waypoints');
+            if(!btn) return;
+            if (btn.classList.contains('danger-confirm')) {
+                clearTimeout(clearWaypointsTimeout);
+                waypoints.forEach(w => map.removeLayer(w.layerInstance));
+                waypoints = []; saveWaypoints();
+                btn.classList.remove('danger-confirm');
+                btn.querySelector('span:first-child').textContent = 'Clear Waypoints';
+                btn.querySelector('.badge').textContent = '✕';
+            } else {
+                btn.classList.add('danger-confirm');
+                btn.querySelector('span:first-child').textContent = 'Are you sure?';
+                btn.querySelector('.badge').textContent = '●';
+                clearWaypointsTimeout = setTimeout(() => {
+                    btn.classList.remove('danger-confirm');
+                    btn.querySelector('span:first-child').textContent = 'Clear Waypoints';
+                    btn.querySelector('.badge').textContent = '✕';
+                }, 3000);
+            }
+        }
+
+        function centerMap() {
+            requestOrientationPermission();
+            if (userMarker) map.setView(userMarker.getLatLng());
+        }
+
+        window.toggleSidebar = toggleSidebar;
+        window.toggleOption = toggleOption;
+        window.clearTrail = clearTrail;
+        window.clearWaypoints = clearWaypoints;
+        window.centerMap = centerMap;
+        window.navigateToSettings = navigateToSettings;
+        window.setMarkerStyle = setMarkerStyle;
+        window.updatePinConfigs = updatePinConfigs;
+        window.updateCircleConfigs = updateCircleConfigs;
+        window.updateArrowConfigs = updateArrowConfigs;
+        window.requestOrientationPermission = requestOrientationPermission;
+    </script>
+</body>
+</html>
