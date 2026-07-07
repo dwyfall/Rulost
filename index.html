@@ -3,315 +3,447 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Rulost Tactical Navigation System</title>
+    <title>Rulost</title>
     
     <!-- Leaflet.js -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <style>
+        /* ============================================================
+           RESET
+           ============================================================ */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
+        
         body {
-            font-family: 'Courier New', monospace;
-            background: #0d0d0d;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
+            background: #000;
             overflow: hidden;
             height: 100vh;
             color: #fff;
+            -webkit-font-smoothing: antialiased;
         }
         
         #map {
             width: 100vw;
             height: 100vh;
-            background: #0d0d0d;
+            background: #0a0a0a;
         }
-
-        /* 
-           MINECRAFT STYLE MARKER:
-           A clean CSS triangle marker that anchors to your exact GPS position 
-           and moves freely across the map space.
-        */
-        .minecraft-marker-container {
+        
+        /* ============================================================
+           USER MARKER (Clean Minimal Arrow)
+           ============================================================ */
+        .user-marker-container {
             background: none !important;
             border: none !important;
         }
-        .minecraft-marker {
-            width: 30px;
-            height: 30px;
+        .user-marker {
+            width: 28px;
+            height: 28px;
             display: flex;
             align-items: center;
             justify-content: center;
             transform-origin: center center;
             will-change: transform;
         }
-        .minecraft-arrow {
+        .user-arrow {
             width: 0;
             height: 0;
-            border-left: 10px solid transparent;
-            border-right: 10px solid transparent;
-            border-bottom: 26px solid #00ffcc;
-            filter: drop-shadow(0px 0px 6px rgba(0, 255, 204, 0.9));
+            border-left: 9px solid transparent;
+            border-right: 9px solid transparent;
+            border-bottom: 22px solid #007aff;
+            filter: drop-shadow(0 2px 8px rgba(0, 122, 255, 0.5));
         }
         
-        /* Minimal Raw Data HUD Header */
-        .hud-header {
+        /* ============================================================
+           HUD (Glassmorphism, Minimal)
+           ============================================================ */
+        .hud {
             position: fixed;
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            z-index: 1999;
-            background: rgba(10, 15, 26, 0.9);
-            border: 1px solid #00ffcc;
-            box-shadow: 0 0 15px rgba(0, 255, 204, 0.2);
-            padding: 12px 20px;
-            border-radius: 8px;
+            z-index: 999;
+            background: rgba(0, 0, 0, 0.55);
+            backdrop-filter: blur(24px) saturate(1.4);
+            -webkit-backdrop-filter: blur(24px) saturate(1.4);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 16px;
+            padding: 10px 20px;
+            width: 90%;
+            max-width: 360px;
             pointer-events: none;
-            backdrop-filter: blur(6px);
-            width: 85%;
-            max-width: 400px;
-            transition: opacity 0.3s ease;
+            transition: opacity 0.4s ease;
         }
-        .status-grid {
+        
+        .hud-grid {
             display: grid;
-            grid-template-columns: 1fr;
+            grid-template-columns: 1fr 1fr 1fr;
             gap: 4px;
-            font-size: 11px;
-            letter-spacing: 1px;
+            text-align: center;
         }
-        .hud-line {
+        
+        .hud-item {
             display: flex;
-            justify-content: space-between;
+            flex-direction: column;
+            align-items: center;
         }
-        .latlng { color: #7fff7f; font-weight: bold; }
-        .accuracy { color: #ffaa44; }
-        .bearing { color: #00ffcc; }
-
-        /* Sidebar Pull Menu Drawer */
+        
+        .hud-label {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: rgba(255, 255, 255, 0.3);
+            font-weight: 600;
+        }
+        
+        .hud-value {
+            font-size: 14px;
+            font-weight: 500;
+            color: #fff;
+            letter-spacing: 0.02em;
+            margin-top: 1px;
+        }
+        
+        .hud-value .highlight {
+            color: #007aff;
+        }
+        
+        .hud-value .dim {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 12px;
+        }
+        
+        /* ============================================================
+           SIDEBAR (Glassmorphism)
+           ============================================================ */
         .sidebar {
             position: fixed;
             top: 0;
-            left: -280px; 
-            width: 280px;
+            left: -280px;
+            width: 260px;
             height: 100vh;
-            background: rgba(10, 15, 26, 0.95);
-            border-right: 1px solid #00ffcc;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(40px) saturate(1.4);
+            -webkit-backdrop-filter: blur(40px) saturate(1.4);
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
             z-index: 2000;
-            transition: left 0.3s cubic-bezier(0.1, 0.9, 0.2, 1);
+            transition: left 0.35s cubic-bezier(0.2, 0.9, 0.3, 1);
             padding: 80px 20px 20px 20px;
-            box-shadow: 5px 0 25px rgba(0,0,0,0.5);
-            backdrop-filter: blur(8px);
         }
+        
         .sidebar.open {
             left: 0;
         }
+        
         .sidebar-title {
-            font-size: 14px;
-            color: #00ffcc;
-            font-weight: bold;
-            border-bottom: 1px solid rgba(0, 255, 204, 0.3);
-            padding-bottom: 8px;
-            margin-bottom: 20px;
-            letter-spacing: 2px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: rgba(255, 255, 255, 0.3);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+            font-weight: 600;
         }
         
-        /* Sidebar Controls */
-        .menu-group {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-        .menu-btn {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(0, 255, 204, 0.4);
-            color: #fff;
-            padding: 12px;
-            font-family: monospace;
-            font-size: 12px;
+        .sidebar button {
+            display: block;
+            width: 100%;
+            padding: 10px 14px;
+            margin-bottom: 4px;
+            background: rgba(255, 255, 255, 0.02);
+            border: none;
+            border-radius: 10px;
+            color: rgba(255, 255, 255, 0.6);
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 400;
             text-align: left;
-            border-radius: 6px;
             cursor: pointer;
-            transition: all 0.2s ease;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            transition: 0.15s ease;
         }
-        .menu-btn.active {
-            border-color: #00ffcc;
-            background: rgba(0, 255, 204, 0.1);
-            color: #00ffcc;
+        
+        .sidebar button:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
         }
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            background: rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
+        
+        .sidebar button.active {
+            background: rgba(0, 122, 255, 0.12);
+            color: #fff;
         }
-        .menu-btn.active .status-dot {
-            background: #00ffcc;
-            box-shadow: 0 0 8px #00ffcc;
+        
+        .sidebar button .badge {
+            float: right;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.2);
         }
-
-        /* Hamburger Drawer Icon */
-        .sidebar-trigger {
+        
+        .sidebar button.active .badge {
+            color: #007aff;
+        }
+        
+        /* ============================================================
+           HAMBURGER (Clean, Minimal)
+           ============================================================ */
+        .hamburger {
             position: fixed;
             top: 20px;
             left: 20px;
             z-index: 2100;
-            background: rgba(10, 15, 26, 0.9);
-            border: 1px solid #00ffcc;
-            color: #00ffcc;
-            width: 42px;
-            height: 42px;
-            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 12px;
+            width: 40px;
+            height: 40px;
             cursor: pointer;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            gap: 5px;
-            box-shadow: 0 0 10px rgba(0, 255, 204, 0.2);
+            gap: 4px;
+            transition: 0.2s ease;
         }
-        .bar {
-            width: 20px;
-            height: 2px;
-            background-color: #00ffcc;
-            transition: 0.3s;
+        
+        .hamburger:hover {
+            background: rgba(255, 255, 255, 0.06);
         }
-        .open .bar:nth-child(1) { transform: rotate(-45deg) translate(-5px, 5px); }
-        .open .bar:nth-child(2) { opacity: 0; }
-        .open .bar:nth-child(3) { transform: rotate(45deg) translate(-5px, -5px); }
-
+        
+        .hamburger .bar {
+            width: 18px;
+            height: 1.5px;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 2px;
+            transition: 0.3s ease;
+        }
+        
+        .hamburger.open .bar:nth-child(1) {
+            transform: rotate(-45deg) translate(-4px, 4px);
+        }
+        .hamburger.open .bar:nth-child(2) {
+            opacity: 0;
+        }
+        .hamburger.open .bar:nth-child(3) {
+            transform: rotate(45deg) translate(-4px, -4px);
+        }
+        
+        /* ============================================================
+           ACTION BUTTON (Drop Waypoint)
+           ============================================================ */
+        .action-btn {
+            position: fixed;
+            bottom: 40px;
+            right: 24px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 50%;
+            width: 56px;
+            height: 56px;
+            color: #fff;
+            font-size: 28px;
+            font-weight: 300;
+            cursor: pointer;
+            transition: 0.2s ease;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .action-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+            transform: scale(1.04);
+        }
+        
+        .action-btn:active {
+            transform: scale(0.92);
+        }
+        
+        /* ============================================================
+           MAP CONTROLS OVERRIDE
+           ============================================================ */
         .leaflet-control-layers {
-            background: #111 !important;
+            background: rgba(0, 0, 0, 0.6) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            border: 1px solid rgba(255, 255, 255, 0.06) !important;
+            border-radius: 12px !important;
             color: #fff !important;
-            border: 1px solid #444 !important;
-            font-family: monospace !important;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif !important;
+        }
+        
+        .leaflet-control-layers label {
+            color: #fff !important;
+            font-weight: 400 !important;
+            font-size: 13px !important;
+        }
+        
+        .leaflet-control-layers-selector {
+            accent-color: #007aff !important;
+        }
+        
+        .leaflet-popup-content-wrapper {
+            background: rgba(0, 0, 0, 0.85) !important;
+            backdrop-filter: blur(20px) !important;
+            border: 1px solid rgba(255, 255, 255, 0.06) !important;
+            border-radius: 12px !important;
+            color: #fff !important;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif !important;
+        }
+        
+        .leaflet-popup-tip {
+            background: rgba(0, 0, 0, 0.85) !important;
         }
     </style>
 </head>
 <body>
 
-    <!-- Sidebar Access Trigger Button -->
-    <button class="sidebar-trigger" id="menu-btn" onclick="toggleSidebar()">
+    <!-- Hamburger -->
+    <button class="hamburger" id="menu-btn" onclick="toggleSidebar()">
         <div class="bar"></div>
         <div class="bar"></div>
         <div class="bar"></div>
     </button>
 
-    <!-- Side Menu Panel Drawer Container -->
+    <!-- Sidebar -->
     <div class="sidebar" id="sidebar-panel">
-        <div class="sidebar-title">SYSTEM MODES</div>
-        <div class="menu-group">
-            <button class="menu-btn active" id="opt-hud" onclick="toggleOption('hud')">
-                <span>SHOW RULOST HUD</span><div class="status-dot"></div>
-            </button>
-            <button class="menu-btn active" id="opt-trail" onclick="toggleOption('trail')">
-                <span>SHOW TRAILS</span><div class="status-dot"></div>
-            </button>
+        <div class="sidebar-title">Settings</div>
+        <button class="active" id="opt-hud" onclick="toggleOption('hud')">
+            <span>HUD</span>
+            <span class="badge">●</span>
+        </button>
+        <button class="active" id="opt-trail" onclick="toggleOption('trail')">
+            <span>Trail</span>
+            <span class="badge">●</span>
+        </button>
+        <button onclick="clearTrail()">
+            <span>Clear Trail</span>
+            <span class="badge">↺</span>
+        </button>
+        <button onclick="clearWaypoints()">
+            <span>Clear Waypoints</span>
+            <span class="badge">✕</span>
+        </button>
+        <button onclick="centerMap()">
+            <span>Center on Me</span>
+            <span class="badge">⌖</span>
+        </button>
+    </div>
+
+    <!-- HUD -->
+    <div class="hud" id="data-hud">
+        <div class="hud-grid">
+            <div class="hud-item">
+                <span class="hud-label">Position</span>
+                <span class="hud-value" id="coords">---</span>
+            </div>
+            <div class="hud-item">
+                <span class="hud-label">Accuracy</span>
+                <span class="hud-value"><span class="dim" id="accuracy">---</span></span>
+            </div>
+            <div class="hud-item">
+                <span class="hud-label">Heading</span>
+                <span class="hud-value" id="bearing">---</span>
+            </div>
         </div>
     </div>
 
-    <!-- Raw Data Matrix HUD Header -->
-    <div class="hud-header" id="data-hud">
-        <div class="status-grid">
-            <div class="hud-line"><span>POS:</span> <span class="latlng" id="coords">SEARCHING...</span></div>
-            <div class="hud-line"><span>SIG:</span> <span class="accuracy" id="accuracy">--</span></div>
-            <div class="hud-line"><span>HDG:</span> <span class="bearing" id="bearing">000° N</span></div>
-        </div>
-    </div>
-
+    <!-- Map -->
     <div id="map"></div>
+
+    <!-- Action Button -->
+    <button class="action-btn" id="drop-btn" title="Drop Waypoint">+</button>
 
     <script>
         // ============================================================
-        // MAP ENGINE SETUP (NORTH IS STABLE AND UP)
+        // MAP
         // ============================================================
         const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; CARTO',
+            attribution: '© CARTO',
             maxZoom: 20
         });
 
         const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: '&copy; Esri',
+            attribution: '© Esri',
             maxZoom: 19
         });
 
         const map = L.map('map', {
-            zoomControl: false, 
+            zoomControl: false,
             center: [0, 0],
             zoom: 2,
             preferCanvas: true,
             layers: [streetLayer]
         });
 
-        L.control.layers({ "🏙️ Tactical Map": streetLayer, "🛰️ Satellite HUD": satelliteLayer }, null, { position: 'topright' }).addTo(map);
-        
+        L.control.layers(
+            { "🗺️ Street": streetLayer, "🛰️ Satellite": satelliteLayer },
+            null,
+            { position: 'topright' }
+        ).addTo(map);
+
         // ============================================================
-        // STATE INITIALIZATION
+        // STATE
         // ============================================================
+        let userMarker = null;
         let accuracyCircle = null;
-        let playerMarker = null; 
         let isFirstLocation = true;
-        let currentHeading = 0; 
+        let currentHeading = 0;
         let lastHeadingApplied = -1;
-        
-        let flagShowHUD = true;
-        let flagShowTrail = true; 
-        
-        let pathCoordinates = [];
-        const trailPath = L.polyline([], {
-            color: '#00ffcc',
-            weight: 3,
-            opacity: 0.6,
-            dashArray: '4, 8',
+
+        let showHUD = true;
+        let showTrail = true;
+
+        let trailPoints = [];
+        const trailLine = L.polyline([], {
+            color: '#007aff',
+            weight: 2.5,
+            opacity: 0.4,
             smoothFactor: 1.5
         }).addTo(map);
 
-        let savedWaypoints = []; 
+        let waypoints = [];
         try {
-            savedWaypoints = JSON.parse(localStorage.getItem('nav_waypoints')) || [];
-        } catch(e) { console.error(e); }
+            waypoints = JSON.parse(localStorage.getItem('rulost_waypoints')) || [];
+        } catch (e) {
+            waypoints = [];
+        }
 
         const coordsEl = document.getElementById('coords');
         const accuracyEl = document.getElementById('accuracy');
         const bearingEl = document.getElementById('bearing');
+        const hudEl = document.getElementById('data-hud');
 
         // ============================================================
-        // POSITIONING & MOVEMENT ENGINE
+        // LOCATION
         // ============================================================
         function updateLocation(lat, lng, accuracy = null) {
             coordsEl.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-            if (accuracy !== null) {
-                accuracyEl.textContent = `±${Math.round(accuracy)}m`;
-            }
-            
-            // Check trail drawing distance threshold (5 meters)
-            let appendNode = false;
-            if (pathCoordinates.length === 0) {
-                appendNode = true;
-            } else {
-                const lastPoint = L.latLng(pathCoordinates[pathCoordinates.length - 1]);
-                const currentPoint = L.latLng(lat, lng);
-                if (lastPoint.distanceTo(currentPoint) >= 5) {
-                    appendNode = true;
-                }
+            accuracyEl.textContent = accuracy ? `±${Math.round(accuracy)}m` : '---';
+
+            // Trail
+            if (trailPoints.length === 0 || L.latLng(trailPoints[trailPoints.length - 1]).distanceTo([lat, lng]) > 5) {
+                trailPoints.push([lat, lng]);
+                if (showTrail) trailLine.setLatLngs(trailPoints);
             }
 
-            if (appendNode) {
-                pathCoordinates.push([lat, lng]);
-                if (flagShowTrail) trailPath.setLatLngs(pathCoordinates);
-            }
-            
-            // Render or move Accuracy Circle
+            // Accuracy circle
             if (!accuracyCircle) {
                 accuracyCircle = L.circle([lat, lng], {
-                    radius: accuracy || 0,
-                    color: '#00ffcc',
-                    fillColor: '#00ffcc',
-                    fillOpacity: 0.05,
+                    radius: accuracy || 20,
+                    color: '#007aff',
+                    fillColor: '#007aff',
+                    fillOpacity: 0.06,
                     weight: 1
                 }).addTo(map);
             } else {
@@ -319,24 +451,21 @@
                 if (accuracy) accuracyCircle.setRadius(accuracy);
             }
 
-            // CREATE OR MOVE MINECRAFT ARROW (Moves around over the layout coordinates)
-            if (!playerMarker) {
-                const customIcon = L.divIcon({
-                    className: 'minecraft-marker-container', 
-                    html: `<div class="minecraft-marker" id="arrow-element"><div class="minecraft-arrow"></div></div>`,
-                    iconSize: [30, 30],
-                    iconAnchor: [15, 15] 
+            // User marker
+            if (!userMarker) {
+                const icon = L.divIcon({
+                    className: 'user-marker-container',
+                    html: `<div class="user-marker" id="arrow-element"><div class="user-arrow"></div></div>`,
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 14]
                 });
-                
-                playerMarker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
+                userMarker = L.marker([lat, lng], { icon }).addTo(map);
             } else {
-                playerMarker.setLatLng([lat, lng]);
+                userMarker.setLatLng([lat, lng]);
             }
-            
-            // Rotate the arrow element to matching orientation heading
-            applyMarkerRotation();
 
-            // Setup camera frame instantly on first GPS stabilization
+            applyRotation();
+
             if (isFirstLocation) {
                 map.setView([lat, lng], 17);
                 isFirstLocation = false;
@@ -344,22 +473,151 @@
         }
 
         // ============================================================
-        // ARROW ORIENTATION ROTATION
+        // COMPASS
         // ============================================================
-        function applyMarkerRotation() {
+        function applyRotation() {
             if (currentHeading === lastHeadingApplied) return;
             lastHeadingApplied = currentHeading;
 
-            bearingEl.textContent = `${String(currentHeading).padStart(3, '0')}° ${getCompassLetter(currentHeading)}`;
-            
-            const arrowElement = document.getElementById('arrow-element');
-            if (arrowElement) {
-                arrowElement.style.transform = `rotate(${currentHeading}deg)`;
+            const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+            const idx = Math.round(((currentHeading % 360) / 45)) % 8;
+            bearingEl.textContent = `${String(currentHeading).padStart(3, '0')}° ${dirs[idx]}`;
+
+            const arrow = document.getElementById('arrow-element');
+            if (arrow) {
+                arrow.style.transform = `rotate(${currentHeading}deg)`;
+            }
+        }
+
+        function handleOrientation(e) {
+            let heading = e.webkitCompassHeading ?? (e.alpha !== null ? 360 - e.alpha : null);
+            if (heading !== null && heading !== undefined) {
+                currentHeading = Math.round(heading);
+                applyRotation();
+            }
+        }
+
+        if (window.DeviceOrientationEvent) {
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                document.addEventListener('click', function initCompass() {
+                    DeviceOrientationEvent.requestPermission().then(r => {
+                        if (r === 'granted') {
+                            window.addEventListener('deviceorientation', handleOrientation);
+                        }
+                    });
+                    document.removeEventListener('click', initCompass);
+                });
+            } else {
+                window.addEventListener('deviceorientation', handleOrientation);
             }
         }
 
         // ============================================================
-        // SYSTEM INTERACTIVE OPTIONS
+        // WAYPOINTS
+        // ============================================================
+        function createWaypoint(id, lat, lng) {
+            const marker = L.circleMarker([lat, lng], {
+                radius: 8,
+                fillColor: '#ff3b30',
+                color: '#fff',
+                weight: 2,
+                fillOpacity: 1
+            }).addTo(map);
+
+            marker.bindPopup(`
+                <div style="font-family: -apple-system, sans-serif; text-align: center; padding: 4px 0;">
+                    <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">📍 Waypoint</div>
+                    <div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 8px;">
+                        ${lat.toFixed(5)}, ${lng.toFixed(5)}
+                    </div>
+                    <button onclick="deleteWaypoint('${id}')" 
+                        style="background: #ff3b30; color: #fff; border: none; padding: 6px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;">
+                        Delete
+                    </button>
+                </div>
+            `);
+
+            waypoints.push({ id, lat, lng, marker });
+            saveWaypoints();
+        }
+
+        function saveWaypoints() {
+            const data = waypoints.map(w => ({ id: w.id, lat: w.lat, lng: w.lng }));
+            localStorage.setItem('rulost_waypoints', JSON.stringify(data));
+        }
+
+        window.deleteWaypoint = function(id) {
+            const idx = waypoints.findIndex(w => w.id === id);
+            if (idx !== -1) {
+                map.removeLayer(waypoints[idx].marker);
+                waypoints.splice(idx, 1);
+                saveWaypoints();
+            }
+        };
+
+        function loadWaypoints() {
+            waypoints.forEach(w => {
+                const marker = L.circleMarker([w.lat, w.lng], {
+                    radius: 8,
+                    fillColor: '#ff3b30',
+                    color: '#fff',
+                    weight: 2,
+                    fillOpacity: 1
+                }).addTo(map);
+                marker.bindPopup(`
+                    <div style="font-family: -apple-system, sans-serif; text-align: center; padding: 4px 0;">
+                        <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">📍 Waypoint</div>
+                        <div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 8px;">
+                            ${w.lat.toFixed(5)}, ${w.lng.toFixed(5)}
+                        </div>
+                        <button onclick="deleteWaypoint('${w.id}')" 
+                            style="background: #ff3b30; color: #fff; border: none; padding: 6px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;">
+                            Delete
+                        </button>
+                    </div>
+                `);
+                waypoints.push({ id: w.id, lat: w.lat, lng: w.lng, marker });
+            });
+        }
+
+        // ============================================================
+        // DROP WAYPOINT (Click on map)
+        // ============================================================
+        map.on('click', function(e) {
+            if (e.originalEvent.target.closest('.leaflet-control')) return;
+            const id = Date.now().toString();
+            createWaypoint(id, e.latlng.lat, e.latlng.lng);
+        });
+
+        // Drop button
+        document.getElementById('drop-btn').addEventListener('click', function() {
+            if (userMarker) {
+                const pos = userMarker.getLatLng();
+                const id = Date.now().toString();
+                createWaypoint(id, pos.lat, pos.lng);
+            } else {
+                alert('Waiting for GPS...');
+            }
+        });
+
+        // Load saved waypoints
+        loadWaypoints();
+
+        // ============================================================
+        // GPS
+        // ============================================================
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(
+                pos => updateLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
+                err => { coordsEl.textContent = 'No GPS'; },
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+            );
+        } else {
+            coordsEl.textContent = 'No GPS';
+        }
+
+        // ============================================================
+        // SIDEBAR
         // ============================================================
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar-panel');
@@ -371,125 +629,65 @@
         function toggleOption(type) {
             const btn = document.getElementById(`opt-${type}`);
             if (type === 'hud') {
-                flagShowHUD = !flagShowHUD;
-                document.getElementById('data-hud').style.opacity = flagShowHUD ? "1" : "0";
-                btn.classList.toggle('active', flagShowHUD);
-            } 
-            else if (type === 'trail') {
-                flagShowTrail = !flagShowTrail;
-                if (flagShowTrail) {
-                    trailPath.setLatLngs(pathCoordinates);
+                showHUD = !showHUD;
+                hudEl.style.opacity = showHUD ? '1' : '0';
+                btn.classList.toggle('active', showHUD);
+            } else if (type === 'trail') {
+                showTrail = !showTrail;
+                if (showTrail) {
+                    trailLine.setLatLngs(trailPoints);
                 } else {
-                    trailPath.setLatLngs([]);
+                    trailLine.setLatLngs([]);
                 }
-                btn.classList.toggle('active', flagShowTrail);
+                btn.classList.toggle('active', showTrail);
             }
         }
 
-        function getCompassLetter(deg) {
-            const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-            const index = Math.round(((deg % 360) / 45)) % 8;
-            return directions[index];
+        function clearTrail() {
+            trailPoints = [];
+            trailLine.setLatLngs([]);
         }
 
-        // ============================================================
-        // REFRESH RATE SENSOR CHIPSET
-        // ============================================================
-        let frameThrottle = false;
-        function handleOrientation(event) {
-            let heading = null;
-            if (event.webkitCompassHeading !== undefined) {
-                heading = event.webkitCompassHeading;
-            } else if (event.alpha !== null) {
-                heading = 360 - event.alpha; 
-            }
-            
-            if (heading !== null && heading !== undefined) {
-                currentHeading = Math.round(heading);
-                
-                if (!frameThrottle) {
-                    window.requestAnimationFrame(() => {
-                        applyMarkerRotation();
-                        frameThrottle = false;
-                    });
-                    frameThrottle = true;
-                }
+        function clearWaypoints() {
+            if (confirm('Delete all waypoints?')) {
+                waypoints.forEach(w => map.removeLayer(w.marker));
+                waypoints = [];
+                saveWaypoints();
             }
         }
 
-        if (window.DeviceOrientationEvent) {
-            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                document.body.addEventListener('click', function() {
-                    DeviceOrientationEvent.requestPermission()
-                        .then(response => {
-                            if (response === 'granted') {
-                                window.addEventListener('deviceorientation', handleOrientation, true);
-                            }
-                        }).catch(console.error);
-                }, { once: true });
-            } else {
-                window.addEventListener('deviceorientation', handleOrientation, true);
+        function centerMap() {
+            if (userMarker) {
+                const pos = userMarker.getLatLng();
+                map.setView([pos.lat, pos.lng], 17);
             }
         }
+
+        // Make functions global for HTML onclick
+        window.toggleSidebar = toggleSidebar;
+        window.toggleOption = toggleOption;
+        window.clearTrail = clearTrail;
+        window.clearWaypoints = clearWaypoints;
+        window.centerMap = centerMap;
 
         // ============================================================
-        // TACTICAL WAYPOINTS
+        // KEYBOARD SHORTCUTS
         // ============================================================
-        function createWaypointMarker(id, lat, lng) {
-            const waypoint = L.circleMarker([lat, lng], {
-                radius: 7,
-                fillColor: '#ff3366', 
-                color: '#ffffff',
-                weight: 2,
-                fillOpacity: 0.9
-            }).addTo(map);
-            
-            const popupContent = document.createElement('div');
-            popupContent.innerHTML = `
-                <div style="font-family: monospace; text-align: center; color: #000;">
-                    <b>🚩 WAYPOINT LOCKED</b><br><br>
-                    <button id="del-${id}" style="background: #ff3366; color: white; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-family: monospace; font-weight: bold;">🗑️ DISMISS</button>
-                </div>
-            `;
-            waypoint.bindPopup(popupContent);
-            
-            function attachDeleteEvent() {
-                const deleteBtn = document.getElementById(`del-${id}`);
-                if (deleteBtn) {
-                    deleteBtn.onclick = function() {
-                        map.removeLayer(waypoint);
-                        savedWaypoints = savedWaypoints.filter(wp => wp.id !== id);
-                        localStorage.setItem('nav_waypoints', JSON.stringify(savedWaypoints));
-                    };
-                }
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'c' || e.key === 'C') {
+                centerMap();
             }
-            setTimeout(attachDeleteEvent, 50);
-            waypoint.on('popupopen', attachDeleteEvent);
-        }
-
-        map.on('click', function(e) {
-            if (e.originalEvent.target.classList.contains('leaflet-interactive')) return;
-            const clickedLat = e.latlng.lat;
-            const clickedLng = e.latlng.lng;
-            const waypointId = Date.now(); 
-            
-            createWaypointMarker(waypointId, clickedLat, clickedLng);
-            savedWaypoints.push({ id: waypointId, lat: clickedLat, lng: clickedLng });
-            localStorage.setItem('nav_waypoints', JSON.stringify(savedWaypoints));
+            if (e.key === '+' || e.key === '=') {
+                document.getElementById('drop-btn').click();
+            }
         });
 
-        savedWaypoints.forEach(wp => createWaypointMarker(wp.id, wp.lat, wp.lng));
-        
         // ============================================================
-        // GEOLOCATION ENGINE
+        // LOG
         // ============================================================
-        if (navigator.geolocation) {
-            const success = pos => updateLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
-            const error = err => { coordsEl.textContent = 'GPS BLOCKED'; };
-            navigator.geolocation.watchPosition(success, error, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
-        } else {
-            coordsEl.textContent = 'NO GPS HARDWARE';
-        }
+        console.log('🧭 Rulost loaded');
+        console.log(`📍 ${waypoints.length} waypoints saved`);
+        console.log('⌨️ C = center, + = drop waypoint');
     </script>
 </body>
 </html>
