@@ -47,6 +47,7 @@
             align-items: center;
             justify-content: center;
             will-change: transform;
+            transform: rotate(var(--arrow-rotation, 0deg)); /* Direct Engine Variable Hook */
         }
         .user-arrow {
             width: 0;
@@ -365,7 +366,6 @@
             border-radius: 50%;
         }
 
-        /* Fixed Hamburger Layout: Added Visual White Lines */
         .hamburger {
             position: fixed;
             top: 20px;
@@ -390,7 +390,7 @@
         .hamburger .bar {
             width: 18px;
             height: 2px;
-            background-color: #ffffff; /* Explicit visible menu lines */
+            background-color: #ffffff;
             border-radius: 1px;
             transition: transform 0.2s ease, opacity 0.2s ease;
         }
@@ -579,7 +579,6 @@
             }
         };
 
-        // ====== CORE COORD COUNTRY GRID BASEPLANE LAYERS ======
         const minimalistCountryOutlines = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
             attribution: '© CARTO', maxZoom: 20
         });
@@ -611,6 +610,7 @@
         let accuracyCircle = null;
         let isFirstLocation = true;
         
+        // ====== 16MS ARROW ENGINE PARAMETERS ======
         let targetHeading = 0;
         let currentHeading = 0; 
         let compassAttached = false;
@@ -634,7 +634,6 @@
         const magGlass = document.getElementById('magnifying-glass');
         const zoomContent = document.getElementById('zoom-content');
 
-        // ====== LOCAL STORAGE REFRESH ENGINE RECOVERY ======
         function saveSettings() {
             try {
                 const configObj = { showHUD, showTrail, markerType, pinSize, circleConfig, arrowConfig };
@@ -724,318 +723,4 @@
                     }).addTo(map);
                 }
                 w.layerInstance.bindPopup(`
-                    <div style="font-family: -apple-system, sans-serif; text-align: center; padding: 4px 0;">
-                        <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">📍 Waypoint</div>
-                        <div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 8px;">${w.lat.toFixed(5)}, ${w.lng.toFixed(5)}</div>
-                        <button onclick="window.deleteWaypoint('${w.id}')" style="background: #ff3b30; color: #fff; border: none; padding: 6px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;">Delete</button>
-                    </div>
-                `);
-            });
-        }
-
-        function saveWaypoints() {
-            try {
-                const data = waypoints.map(w => ({ id: w.id, lat: w.lat, lng: w.lng }));
-                localStorage.setItem('rulost_waypoints', JSON.stringify(data));
-            } catch(e) {}
-        }
-
-        function loadWaypoints() {
-            try {
-                const raw = localStorage.getItem('rulost_waypoints');
-                const data = raw ? JSON.parse(raw) : [];
-                data.forEach(w => createWaypoint(w.id, w.lat, w.lng));
-            } catch(e) {}
-        }
-
-        function navigateToSettings(shouldGoToSettings) {
-            const scroller = document.getElementById('sidebar-scroller');
-            if (shouldGoToSettings) { scroller.classList.add('in-settings'); } else { scroller.classList.remove('in-settings'); }
-        }
-
-        function setMarkerStyle(style) {
-            markerType = style;
-            document.getElementById('seg-pin').classList.toggle('selected', style === 'pin');
-            document.getElementById('seg-circle').classList.toggle('selected', style === 'circle');
-            document.getElementById('pin-size-control').style.display = style === 'pin' ? 'block' : 'none';
-            document.getElementById('circle-customizers').style.display = style === 'circle' ? 'block' : 'none';
-            document.getElementById('drop-btn-icon').textContent = style === 'pin' ? '📍' : '🔵';
-            redrawAllWaypoints(); saveSettings();
-        }
-
-        function updatePinConfigs() {
-            pinSize = parseInt(document.getElementById('cfg-pin-size').value, 10);
-            document.documentElement.style.setProperty('--pin-size', pinSize + 'px');
-            if (markerType === 'pin') redrawAllWaypoints();
-            saveSettings();
-        }
-
-        function updateCircleConfigs() {
-            circleConfig.radius = parseInt(document.getElementById('cfg-radius').value, 10);
-            circleConfig.color = document.getElementById('cfg-color').value;
-            circleConfig.opacity = parseFloat(document.getElementById('cfg-opacity').value) / 100;
-            if (markerType === 'circle') {
-                waypoints.forEach(w => {
-                    if (w.layerInstance.setRadius) {
-                        w.layerInstance.setRadius(circleConfig.radius);
-                        w.layerInstance.setStyle({ color: circleConfig.color, fillColor: circleConfig.color, fillOpacity: circleConfig.opacity });
-                    }
-                });
-            }
-            saveSettings();
-        }
-
-        function updateArrowConfigs() {
-            arrowConfig.showRadius = document.getElementById('cfg-show-radius').checked;
-            arrowConfig.color = document.getElementById('cfg-arrow-color').value;
-            document.documentElement.style.setProperty('--arrow-color', arrowConfig.color);
-            if (accuracyCircle) {
-                if (arrowConfig.showRadius) {
-                    accuracyCircle.setStyle({ opacity: 1, fillOpacity: 0.06, color: arrowConfig.color, fillColor: arrowConfig.color });
-                } else { accuracyCircle.setStyle({ opacity: 0, fillOpacity: 0 }); }
-            }
-            saveSettings();
-        }
-
-        // ====== HIGH FREQUENCY SMOOTH LERP FRAME LOOP ======
-        function runEngineLoop() {
-            let diff = targetHeading - currentHeading;
-            while (diff < -180) diff += 360;
-            while (diff > 180) diff -= 360;
-            currentHeading += diff * 0.22;
-            currentHeading = (currentHeading + 360) % 360;
-
-            const arrow = document.getElementById('arrow-element');
-            if (arrow) {
-                arrow.style.transform = `rotate(${Math.round(currentHeading)}deg)`;
-            }
-
-            if(bearingEl) {
-                const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-                const idx = Math.round(((currentHeading % 360) / 45)) % 8;
-                bearingEl.textContent = `${String(Math.round(currentHeading)).padStart(3, '0')}° ${dirs[idx]}`;
-            }
-            requestAnimationFrame(runEngineLoop);
-        }
-        requestAnimationFrame(runEngineLoop);
-
-        function handleOrientation(e) {
-            let heading = e.webkitCompassHeading ?? (e.alpha !== null ? 360 - e.alpha : null);
-            if (heading !== null && heading !== undefined) {
-                targetHeading = Math.round(heading);
-            }
-        }
-
-        function requestOrientationPermission() {
-            if (compassAttached) return;
-            if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission()
-                    .then(permissionState => {
-                        if (permissionState === 'granted') {
-                            window.addEventListener('deviceorientation', handleOrientation, true);
-                            compassAttached = true;
-                        }
-                    }).catch(console.error);
-            } else if (window.DeviceOrientationEvent) {
-                window.addEventListener('deviceorientation', handleOrientation, true);
-                compassAttached = true;
-            }
-        }
-
-        function updateLocation(lat, lng, accuracy = null) {
-            if(coordsEl) coordsEl.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-            if(accuracyEl) accuracyEl.textContent = accuracy ? `±${Math.round(accuracy)}m` : '---';
-
-            if (showTrail && (trailPoints.length === 0 || L.latLng(trailPoints[trailPoints.length - 1]).distanceTo([lat, lng]) > 1)) {
-                trailPoints.push([lat, lng]);
-                trailLine.setLatLngs(trailPoints);
-            }
-
-            if (!accuracyCircle) {
-                accuracyCircle = L.circle([lat, lng], { radius: accuracy || 15, color: arrowConfig.color, fillColor: arrowConfig.color, fillOpacity: arrowConfig.showRadius ? 0.06 : 0, opacity: arrowConfig.showRadius ? 1 : 0, weight: 1 }).addTo(map);
-            } else {
-                accuracyCircle.setLatLng([lat, lng]);
-                if (accuracy) accuracyCircle.setRadius(accuracy);
-            }
-
-            if (!userMarker) {
-                const icon = L.divIcon({
-                    className: 'user-marker-container',
-                    html: `<div class="user-marker" id="arrow-element"><div class="user-arrow"></div></div>`,
-                    iconSize: [28, 28], iconAnchor: [14, 14]
-                });
-                userMarker = L.marker([lat, lng], { icon }).addTo(map);
-            } else { userMarker.setLatLng([lat, lng]); }
-
-            if (isFirstLocation) { map.setView([lat, lng], 17); isFirstLocation = false; }
-        }
-
-        // ====== FIXED WAYPOINT TRIGGERS INTERACTIVE IMPLEMENTATION ======
-        // Fixed Right-Click Listener (Desktop Map Context View Binding)
-        map.on('contextmenu', function(e) {
-            createWaypoint(Date.now().toString(), e.latlng.lat, e.latlng.lng);
-        });
-
-        const dropBtn = document.getElementById('drop-btn');
-        let isDragging = false;
-        let offsetX = 0, offsetY = 0;
-
-        function updateMagnifyingGlass(clientX, clientY) {
-            const mapContainer = map.getContainer();
-            const rect = mapContainer.getBoundingClientRect();
-            const x = clientX - rect.left;
-            const y = clientY - rect.top;
-
-            if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
-                magGlass.style.display = 'block';
-                magGlass.style.left = clientX + 'px';
-                magGlass.style.top = (clientY - 60) + 'px';
-
-                const latlng = map.containerPointToLatLng([x, y]);
-                const zoomedCenter = map.project(latlng, map.getZoom() + 2);
-                const tileSize = 256; const scale = 2;
-                const baseUrl = 'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
-                const url = baseUrl.replace('{z}', map.getZoom() + 2).replace('{x}', Math.floor(zoomedCenter.x / tileSize)).replace('{y}', Math.floor(zoomedCenter.y / tileSize));
-                zoomContent.style.backgroundImage = `url('${url}')`;
-                zoomContent.style.backgroundSize = `${tileSize * scale}px ${tileSize * scale}px`;
-                zoomContent.style.backgroundPosition = `-${(zoomedCenter.x % tileSize) * scale}px -${(zoomedCenter.y % tileSize) * scale}px`;
-            } else { magGlass.style.display = 'none'; }
-        }
-
-        // Desktop Mouse Click Drag Drop Handlers (Fixes Bottom Right Pin Tool)
-        dropBtn.addEventListener('mousedown', function(e) {
-            const rect = dropBtn.getBoundingClientRect();
-            offsetX = e.clientX - rect.left; offsetY = e.clientY - rect.top;
-            isDragging = true; dropBtn.style.cursor = 'grabbing'; dropBtn.style.opacity = '0.6';
-        });
-
-        document.addEventListener('mousemove', function(e) {
-            if (!isDragging) return;
-            dropBtn.style.position = 'fixed'; dropBtn.style.left = (e.clientX - offsetX) + 'px'; dropBtn.style.top = (e.clientY - offsetY) + 'px';
-            dropBtn.style.bottom = 'auto'; dropBtn.style.right = 'auto';
-            updateMagnifyingGlass(e.clientX, e.clientY);
-        });
-
-        document.addEventListener('mouseup', function(e) {
-            if (!isDragging) return; isDragging = false;
-            dropBtn.style.cursor = 'grab'; dropBtn.style.opacity = '1'; magGlass.style.display = 'none';
-            const rect = map.getContainer().getBoundingClientRect();
-            const x = e.clientX - rect.left; const y = e.clientY - rect.top;
-
-            if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
-                const latlng = map.containerPointToLatLng([x, y]);
-                createWaypoint(Date.now().toString(), latlng.lat, latlng.lng);
-            }
-            dropBtn.style.left = ''; dropBtn.style.top = ''; dropBtn.style.position = 'fixed'; dropBtn.style.bottom = '40px'; dropBtn.style.right = '24px';
-        });
-
-        // Touch Interaction Bindings for Mobile Displays
-        dropBtn.addEventListener('touchstart', function(e) {
-            const touch = e.touches[0];
-            const rect = dropBtn.getBoundingClientRect();
-            offsetX = touch.clientX - rect.left; offsetY = touch.clientY - rect.top;
-            isDragging = true; dropBtn.style.opacity = '0.6';
-        }, { passive: true });
-
-        document.addEventListener('touchmove', function(e) {
-            if (!isDragging) return; e.preventDefault();
-            const touch = e.touches[0];
-            dropBtn.style.position = 'fixed'; dropBtn.style.left = (touch.clientX - offsetX) + 'px'; dropBtn.style.top = (touch.clientY - offsetY) + 'px';
-            dropBtn.style.bottom = 'auto'; dropBtn.style.right = 'auto';
-            updateMagnifyingGlass(touch.clientX, touch.clientY);
-        }, { passive: false });
-
-        document.addEventListener('touchend', function(e) {
-            if (!isDragging) return; isDragging = false;
-            dropBtn.style.opacity = '1'; magGlass.style.display = 'none';
-            const touch = e.changedTouches[0];
-            const mapContainer = map.getContainer();
-            const rect = mapContainer.getBoundingClientRect();
-            const x = touch.clientX - rect.left; const y = touch.clientY - rect.top;
-
-            if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
-                const latlng = map.containerPointToLatLng([x, y]);
-                createWaypoint(Date.now().toString(), latlng.lat, latlng.lng);
-            }
-            dropBtn.style.left = ''; dropBtn.style.top = ''; dropBtn.style.position = 'fixed'; dropBtn.style.bottom = '40px'; dropBtn.style.right = '24px';
-        }, { passive: true });
-
-        // ====== INITIALIZATION & STATE ENGINE SYNCHRONIZATION ======
-        loadSettings();
-        applyStoredSettingsToDOM();
-        loadWaypoints();
-
-        if (navigator.geolocation) {
-            navigator.geolocation.watchPosition(
-                pos => updateLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
-                err => {}, { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-            );
-        }
-
-        function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar-panel');
-            const trigger = document.getElementById('menu-btn');
-            if(sidebar && trigger) {
-                sidebar.classList.toggle('open');
-                trigger.classList.toggle('open');
-                if (!sidebar.classList.contains('open')) navigateToSettings(false);
-            }
-        }
-
-        function toggleOption(type) {
-            const btn = document.getElementById(`opt-${type}`);
-            if (type === 'hud') {
-                showHUD = !showHUD;
-                if(hudEl) hudEl.style.opacity = showHUD ? '1' : '0';
-                if(btn) btn.classList.toggle('active', showHUD);
-            } else if (type === 'trail') {
-                showTrail = !showTrail;
-                if (showTrail) { trailLine.setLatLngs(trailPoints); } else { trailLine.setLatLngs([]); }
-                if(btn) btn.classList.toggle('active', showTrail);
-            }
-            saveSettings();
-        }
-
-        function clearTrail() { trailPoints = []; trailLine.setLatLngs([]); }
-
-        function clearWaypoints() {
-            const btn = document.getElementById('btn-clear-waypoints');
-            if(!btn) return;
-            if (btn.classList.contains('danger-confirm')) {
-                clearTimeout(clearWaypointsTimeout);
-                waypoints.forEach(w => map.removeLayer(w.layerInstance));
-                waypoints = []; saveWaypoints();
-                btn.classList.remove('danger-confirm');
-                btn.querySelector('span:first-child').textContent = 'Clear Waypoints';
-                btn.querySelector('.badge').textContent = '✕';
-            } else {
-                btn.classList.add('danger-confirm');
-                btn.querySelector('span:first-child').textContent = 'Are you sure?';
-                btn.querySelector('.badge').textContent = '●';
-                clearWaypointsTimeout = setTimeout(() => {
-                    btn.classList.remove('danger-confirm');
-                    btn.querySelector('span:first-child').textContent = 'Clear Waypoints';
-                    btn.querySelector('.badge').textContent = '✕';
-                }, 3000);
-            }
-        }
-
-        function centerMap() {
-            requestOrientationPermission();
-            if (userMarker) map.setView(userMarker.getLatLng());
-        }
-
-        window.toggleSidebar = toggleSidebar;
-        window.toggleOption = toggleOption;
-        window.clearTrail = clearTrail;
-        window.clearWaypoints = clearWaypoints;
-        window.centerMap = centerMap;
-        window.navigateToSettings = navigateToSettings;
-        window.setMarkerStyle = setMarkerStyle;
-        window.updatePinConfigs = updatePinConfigs;
-        window.updateCircleConfigs = updateCircleConfigs;
-        window.updateArrowConfigs = updateArrowConfigs;
-        window.requestOrientationPermission = requestOrientationPermission;
-    </script>
-</body>
-</html>
+                    <div style="font-family: -apple-system, sans-serif; text-align: center; padding: 4px 0
