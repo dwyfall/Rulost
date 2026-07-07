@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Rulost</title>
     
-    <!-- Leaflet.js -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
@@ -60,7 +59,7 @@
         }
         
         /* ============================================================
-           WAYPOINT MARKER (Pin with Magnifying Circle)
+           WAYPOINT MARKER (Pin)
            ============================================================ */
         .waypoint-pin {
             width: 36px;
@@ -382,14 +381,12 @@
 </head>
 <body>
 
-    <!-- Hamburger -->
     <button class="hamburger" id="menu-btn" onclick="toggleSidebar()">
         <div class="bar"></div>
         <div class="bar"></div>
         <div class="bar"></div>
     </button>
 
-    <!-- Sidebar -->
     <div class="sidebar" id="sidebar-panel">
         <div class="sidebar-title">Settings</div>
         <button class="active" id="opt-hud" onclick="toggleOption('hud')">
@@ -414,7 +411,6 @@
         </button>
     </div>
 
-    <!-- HUD -->
     <div class="hud" id="data-hud">
         <div class="hud-grid">
             <div class="hud-item">
@@ -432,16 +428,13 @@
         </div>
     </div>
 
-    <!-- Map -->
     <div id="map"></div>
 
-    <!-- Magnifying Glass (Drag Preview) -->
     <div class="magnifying-glass" id="magnifying-glass">
         <div class="zoom-content" id="zoom-content"></div>
         <div class="crosshair"></div>
     </div>
 
-    <!-- Action Button -->
     <button class="action-btn" id="drop-btn" title="Drag to drop waypoint">
         <span class="pin-icon">📍</span>
     </button>
@@ -496,9 +489,10 @@
 
         let waypoints = [];
         try {
-            waypoints = JSON.parse(localStorage.getItem('rulost_waypoints')) || [];
+            const savedData = JSON.parse(localStorage.getItem('rulost_waypoints')) || [];
+            // We only grab data properties, instances are handled by loadWaypoints
         } catch (e) {
-            waypoints = [];
+            console.error(e);
         }
 
         const coordsEl = document.getElementById('coords');
@@ -553,28 +547,14 @@
         };
 
         function loadWaypoints() {
-            waypoints.forEach(w => {
-                const icon = L.divIcon({
-                    html: `<div class="waypoint-pin">📍</div>`,
-                    iconSize: [36, 36],
-                    iconAnchor: [18, 36],
-                    className: ''
+            try {
+                const data = JSON.parse(localStorage.getItem('rulost_waypoints')) || [];
+                data.forEach(w => {
+                    createWaypoint(w.id, w.lat, w.lng);
                 });
-                const marker = L.marker([w.lat, w.lng], { icon }).addTo(map);
-                marker.bindPopup(`
-                    <div style="font-family: -apple-system, sans-serif; text-align: center; padding: 4px 0;">
-                        <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">📍 Waypoint</div>
-                        <div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 8px;">
-                            ${w.lat.toFixed(5)}, ${w.lng.toFixed(5)}
-                        </div>
-                        <button onclick="deleteWaypoint('${w.id}')" 
-                            style="background: #ff3b30; color: #fff; border: none; padding: 6px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;">
-                            Delete
-                        </button>
-                    </div>
-                `);
-                waypoints.push({ id: w.id, lat: w.lat, lng: w.lng, marker });
-            });
+            } catch(e) {
+                console.error(e);
+            }
         }
 
         // ============================================================
@@ -671,11 +651,11 @@
         });
 
         // ============================================================
-        // DRAG-AND-DROP PIN (Mobile + PC)
+        // DRAG-AND-DROP PIN (Fixed position restoration)
         // ============================================================
         const dropBtn = document.getElementById('drop-btn');
         let isDragging = false;
-        let dragStartX, dragStartY;
+        let offsetX = 0, offsetY = 0;
 
         function updateMagnifyingGlass(clientX, clientY) {
             const mapContainer = map.getContainer();
@@ -688,18 +668,19 @@
                 magGlass.style.left = clientX + 'px';
                 magGlass.style.top = (clientY - 60) + 'px';
 
-                // Zoom the map content inside the glass (2x zoom)
+                // Update zoom preview
                 const latlng = map.containerPointToLatLng([x, y]);
                 const zoomedCenter = map.project(latlng, map.getZoom() + 2);
-                const currentCenter = map.project(map.getCenter(), map.getZoom() + 2);
-                const offsetX = currentCenter.x - zoomedCenter.x;
-                const offsetY = currentCenter.y - zoomedCenter.y;
-
                 const tileSize = 256;
                 const scale = 2;
-                zoomContent.style.backgroundImage = `url('${streetLayer._url.replace('{s}', 'a').replace('{z}', map.getZoom() + 2).replace('{x}', Math.floor(zoomedCenter.x / tileSize)).replace('{y}', Math.floor(zoomedCenter.y / tileSize))}')`;
+                const baseUrl = 'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
+                const url = baseUrl
+                    .replace('{z}', map.getZoom() + 2)
+                    .replace('{x}', Math.floor(zoomedCenter.x / tileSize))
+                    .replace('{y}', Math.floor(zoomedCenter.y / tileSize));
+                zoomContent.style.backgroundImage = `url('${url}')`;
                 zoomContent.style.backgroundSize = `${tileSize * scale}px ${tileSize * scale}px`;
-                zoomContent.style.backgroundPosition = `${-offsetX * scale}px ${-offsetY * scale}px`;
+                zoomContent.style.backgroundPosition = `-${(zoomedCenter.x % tileSize) * scale}px -${(zoomedCenter.y % tileSize) * scale}px`;
             } else {
                 magGlass.style.display = 'none';
             }
@@ -708,25 +689,27 @@
         // Touch events (mobile)
         dropBtn.addEventListener('touchstart', function(e) {
             const touch = e.touches[0];
-            dragStartX = touch.clientX;
-            dragStartY = touch.clientY;
+            const rect = dropBtn.getBoundingClientRect();
+            offsetX = touch.clientX - rect.left;
+            offsetY = touch.clientY - rect.top;
             isDragging = true;
             dropBtn.style.opacity = '0.6';
         }, { passive: true });
 
-        dropBtn.addEventListener('touchmove', function(e) {
+        document.addEventListener('touchmove', function(e) {
             if (!isDragging) return;
             e.preventDefault();
             const touch = e.touches[0];
+            // Move the button with finger
             dropBtn.style.position = 'fixed';
-            dropBtn.style.left = (touch.clientX - 28) + 'px';
-            dropBtn.style.top = (touch.clientY - 28) + 'px';
+            dropBtn.style.left = (touch.clientX - offsetX) + 'px';
+            dropBtn.style.top = (touch.clientY - offsetY) + 'px';
             dropBtn.style.bottom = 'auto';
             dropBtn.style.right = 'auto';
             updateMagnifyingGlass(touch.clientX, touch.clientY);
         }, { passive: false });
 
-        dropBtn.addEventListener('touchend', function(e) {
+        document.addEventListener('touchend', function(e) {
             if (!isDragging) return;
             isDragging = false;
             dropBtn.style.opacity = '1';
@@ -744,17 +727,19 @@
                 createWaypoint(id, latlng.lat, latlng.lng);
             }
 
+            // CRITICAL FIX: Strip left/top completely so CSS fallback positioning hooks back up
+            dropBtn.style.left = '';
+            dropBtn.style.top = '';
             dropBtn.style.position = 'fixed';
             dropBtn.style.bottom = '40px';
             dropBtn.style.right = '24px';
-            dropBtn.style.left = 'auto';
-            dropBtn.style.top = 'auto';
         }, { passive: true });
 
         // Mouse events (PC drag)
         dropBtn.addEventListener('mousedown', function(e) {
-            dragStartX = e.clientX;
-            dragStartY = e.clientY;
+            const rect = dropBtn.getBoundingClientRect();
+            offsetX = e.clientX - rect.left;
+            offsetY = e.clientY - rect.top;
             isDragging = true;
             dropBtn.style.cursor = 'grabbing';
             dropBtn.style.opacity = '0.6';
@@ -763,8 +748,8 @@
         document.addEventListener('mousemove', function(e) {
             if (!isDragging) return;
             dropBtn.style.position = 'fixed';
-            dropBtn.style.left = (e.clientX - 28) + 'px';
-            dropBtn.style.top = (e.clientY - 28) + 'px';
+            dropBtn.style.left = (e.clientX - offsetX) + 'px';
+            dropBtn.style.top = (e.clientY - offsetY) + 'px';
             dropBtn.style.bottom = 'auto';
             dropBtn.style.right = 'auto';
             updateMagnifyingGlass(e.clientX, e.clientY);
@@ -788,11 +773,12 @@
                 createWaypoint(id, latlng.lat, latlng.lng);
             }
 
+            // CRITICAL FIX: Strip left/top completely so CSS fallback positioning hooks back up
+            dropBtn.style.left = '';
+            dropBtn.style.top = '';
             dropBtn.style.position = 'fixed';
             dropBtn.style.bottom = '40px';
             dropBtn.style.right = '24px';
-            dropBtn.style.left = 'auto';
-            dropBtn.style.top = 'auto';
         });
 
         // Load saved waypoints
@@ -863,24 +849,6 @@
         window.clearTrail = clearTrail;
         window.clearWaypoints = clearWaypoints;
         window.centerMap = centerMap;
-
-        // ============================================================
-        // KEYBOARD SHORTCUTS
-        // ============================================================
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'c' || e.key === 'C') {
-                centerMap();
-            }
-        });
-
-        // ============================================================
-        // LOG
-        // ============================================================
-        console.log('🧭 Rulost loaded');
-        console.log(`📍 ${waypoints.length} waypoints saved`);
-        console.log('⌨️ C = center map');
-        console.log('🖱️ Right-click to drop waypoint');
-        console.log('📱 Drag the 📍 button to drop a pin anywhere');
     </script>
 </body>
 </html>
