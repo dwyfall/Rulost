@@ -613,11 +613,11 @@
 
         // Layer selection controller panel
         L.control.layers({ 
-            "🌐 Infinite Grid Matrix": pureGridLayer, 
-            "🌑 Absolute Void (Blank)": blankVoidLayer,
-            "🗺️ Country Border Grid": countryMatrixGroup, 
-            "🛰️ Satellite Imagery": satelliteLayer, 
-            "🏙️ Standard Street Map": streetLayer 
+            "Grid Map": pureGridLayer, 
+            "Blank Map": blankVoidLayer,
+            "Country Border Map": countryMatrixGroup, 
+            "Satellite Map": satelliteLayer, 
+            "Standard Street Map": streetLayer 
         }, null, { position: 'topright' }).addTo(map);
 
         let userMarker = null;
