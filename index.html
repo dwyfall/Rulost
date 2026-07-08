@@ -117,7 +117,7 @@
         
         .hud {
             position: fixed;
-            top: 20px;
+            top: max(12px, 2vh)
             left: 50%;
             transform: translateX(-50%);
             z-index: 999;
@@ -127,7 +127,7 @@
             border: 1px solid rgba(255, 255, 255, 0.06);
             border-radius: 16px;
             padding: 10px 20px;
-            width: 90%;
+            width: min(92%, 420px);
             max-width: 360px;
             pointer-events: none;
             transition: opacity 0.4s ease;
@@ -135,7 +135,7 @@
         .hud-grid {
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
-            gap: 4px;
+            gap: 4px 8px;
             text-align: center;
         }
         .hud-item {
@@ -144,7 +144,7 @@
             align-items: center;
         }
         .hud-label {
-            font-size: 9px;
+            clamp(12px, 2vw, 17px);
             text-transform: uppercase;
             letter-spacing: 0.06em;
             color: rgba(255, 255, 255, 0.3);
