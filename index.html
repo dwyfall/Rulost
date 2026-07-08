@@ -504,7 +504,12 @@
                     <span>Customization</span>
                     <span class="back-link" onclick="navigateToSettings(false)">‹ Menu</span>
                 </div>
-
+                 <!-- ts is the setting for the hud control -->
+                <div class="group-settings">
+                    <div class="control-row">
+                        <span>Hud Settings</span>
+                    <input type=range min="50" max="150" value="100" id="hud-size-slider" oninput="updateHudSize()">
+                </div>
                 <div class="setting-group">
                     <div class="control-row">
                         <span>Show Location Radius</span>
