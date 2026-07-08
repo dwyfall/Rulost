@@ -590,10 +590,10 @@
             }
         };
 
-        // Custom Blank Void Layer
+        // blank map
         const blankVoidLayer = L.layerGroup([]);
 
-        // Custom Canvas Grid Layer Layer (Pure lines over absolute dark void)
+        // the grid map
         const pureGridLayer = L.gridLayer({ tileSize: 256, opacity: 0.35 });
         pureGridLayer.createTile = function(coords) {
             const tile = document.createElement('canvas');
@@ -607,7 +607,7 @@
             return tile;
         };
 
-        // Traditional background layers
+        // actual real maps like satalites
         const minimalistCountryOutlines = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png', {
             attribution: '© CARTO', maxZoom: 20, subdomains: ['a', 'b', 'c', 'd']
         });
@@ -615,7 +615,7 @@
         const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', { attribution: '© CARTO', subdomains: ['a', 'b', 'c', 'd'] });
         const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri' });
 
-        // Initialize with Infinite Grid as the default look
+        // making the grid the default
         const map = L.map('map', {
             zoomControl: false, center: [11.56494, 104.91438], zoom: 16, layers: [pureGridLayer]
         });
