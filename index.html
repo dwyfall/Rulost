@@ -1,50 +1,41 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Rulost</title>
-
+    
     <!-- Web Icon (Favicon) -->
     <link rel="icon" type="image/png" href="https://maps.google.com/mapfiles/kml/paddle/blu-blank.png">
     
     <!-- Leaflet.js -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
+    
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-
+        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: #ffffff;
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
-            background: #fff;
+            background: #000;
             overflow: hidden;
             height: 100vh;
-            color: #000;
             color: #fff;
             -webkit-font-smoothing: antialiased;
         }
-
+        
         #map {
-@@ -26,112 +35,787 @@
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
             top: 0;
             left: 0;
             z-index: 1;
-            background: #ffffff !important;
-            background: #ffffff !important; 
-            pointer-events: auto !important;
-        }
-
-        .leaflet-tile-container canvas { pointer-events: none !important; }
-        /* FIX: Prevents the pure canvas grid from blocking map clicks/drags */
-        .leaflet-tile-container canvas {
-            pointer-events: none !important;
+            background: #000 !important; /* Force true black map container */
         }
         
         .user-marker-container {
@@ -123,17 +114,13 @@
             color: rgba(255, 255, 255, 0.8);
             font-size: 16px;
         }
-
-        /* HUD & UI - Light Theme */
+        
         .hud {
             position: fixed;
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 999;
-            background: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(0, 0, 0, 0.1);
             background: rgba(0, 0, 0, 0.55);
             backdrop-filter: blur(24px) saturate(1.4);
             -webkit-backdrop-filter: blur(24px) saturate(1.4);
@@ -143,7 +130,6 @@
             width: 90%;
             max-width: 360px;
             pointer-events: none;
-            color: #000;
             transition: opacity 0.4s ease;
         }
         .hud-grid {
@@ -258,6 +244,11 @@
         .sidebar-wrapper button.active {
             background: rgba(0, 122, 255, 0.15) !important;
             color: #fff !important;
+        }
+        .sidebar-wrapper button .badge, .setting-row-btn .badge {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.3) !important;
+            flex-shrink: 0 !important;
         }
         .sidebar-wrapper button.active .badge {
             color: #007aff !important;
@@ -382,8 +373,6 @@
             top: 20px;
             left: 20px;
             z-index: 2100;
-            background: #fff;
-            border: 1px solid rgba(0,0,0,0.1);
             background: rgba(0, 0, 0, 0.4);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
@@ -397,7 +386,6 @@
             justify-content: center;
             align-items: center;
             gap: 4px;
-            cursor: pointer;
             transition: 0.2s ease;
         }
         .hamburger:hover { background: rgba(255, 255, 255, 0.06); }
@@ -411,21 +399,9 @@
         .hamburger.open .bar:nth-child(1) { transform: rotate(-45deg) translate(-4px, 4px); }
         .hamburger.open .bar:nth-child(2) { opacity: 0; }
         .hamburger.open .bar:nth-child(3) { transform: rotate(45deg) translate(-4px, -4px); }
-
-        .bar { width: 18px; height: 2px; background-color: #000; }
         
-        .sidebar-wrapper {
         .action-btn {
             position: fixed;
-            top: 0;
-            left: -300px;
-            width: 280px;
-            height: 100vh;
-            background: #ffffff;
-            border-right: 1px solid rgba(0,0,0,0.1);
-            z-index: 2000;
-            transition: 0.3s;
-            padding: 60px 20px;
             bottom: 40px;
             right: 24px;
             z-index: 1000;
@@ -466,24 +442,17 @@
             border-radius: 12px !important;
             color: #fff !important;
         }
-        .sidebar-wrapper.open { left: 0; }
         .leaflet-popup-tip { background: rgba(0, 0, 0, 0.85) !important; }
     </style>
 </head>
-<body>
 <body onclick="requestOrientationPermission()">
 
-    <button class="hamburger" onclick="document.getElementById('sidebar').classList.toggle('open')">
-        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
     <button class="hamburger" id="menu-btn" onclick="toggleSidebar(); event.stopPropagation();">
         <div class="bar"></div>
         <div class="bar"></div>
         <div class="bar"></div>
     </button>
 
-    <div class="sidebar-wrapper" id="sidebar">
-        <h3>Menu</h3>
-        <button onclick="map.setView([11.56, 104.91], 16)">Center on Me</button>
     <div class="sidebar-wrapper" id="sidebar-panel" onclick="event.stopPropagation();">
         <div class="sidebar-scroller" id="sidebar-scroller">
             
@@ -574,10 +543,6 @@
         </div>
     </div>
 
-    <div class="hud">
-        <div style="display:flex; justify-content: space-around;">
-            <div>Pos: <span id="coords">---</span></div>
-            <div>Acc: <span id="acc">---</span></div>
     <div class="hud" id="data-hud">
         <div class="hud-grid">
             <div class="hud-item">
@@ -607,13 +572,6 @@
     </button>
 
     <script>
-        // Grid Layer (Black lines on white background)
-        const pureGridLayer = L.gridLayer({ tileSize: 256 });
-        pureGridLayer.createTile = function() {
-            const t = document.createElement('canvas');
-            t.width = 256; t.height = 256;
-            const ctx = t.getContext('2d');
-            ctx.strokeStyle = '#cccccc'; 
         window.deleteWaypoint = function(id) {
             const idx = waypoints.findIndex(w => w.id === id);
             if (idx !== -1) {
@@ -626,26 +584,20 @@
         // Custom Blank Void Layer
         const blankVoidLayer = L.layerGroup([]);
 
-        // Custom Canvas Grid Layer (Pure lines over absolute white void)
-        const pureGridLayer = L.gridLayer({ tileSize: 256, opacity: 0.35, interactive: false });
+        // Custom Canvas Grid Layer Layer (Pure lines over absolute dark void)
+        const pureGridLayer = L.gridLayer({ tileSize: 256, opacity: 0.35 });
         pureGridLayer.createTile = function(coords) {
             const tile = document.createElement('canvas');
             tile.width = 256; tile.height = 256;
             const ctx = tile.getContext('2d');
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)';
+            ctx.strokeStyle = 'rgba(0, 122, 255, 0.45)';
             ctx.lineWidth = 0.6;
             ctx.strokeRect(0, 0, 256, 256);
-            ctx.fillStyle = '#000';
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+            ctx.fillStyle = 'rgba(0, 122, 255, 0.25)';
             ctx.fillRect(126, 126, 4, 4);
-            return t;
             return tile;
         };
 
-        const map = L.map('map', { 
-            center: [11.56494, 104.91438], 
-            zoom: 16, 
-            layers: [pureGridLayer] 
         // Traditional background layers
         const minimalistCountryOutlines = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png', {
             attribution: '© CARTO', maxZoom: 20, subdomains: ['a', 'b', 'c', 'd']
@@ -741,11 +693,6 @@
             } catch(e) {}
         }
 
-        // Initialize GPS
-        if (navigator.geolocation) {
-            navigator.geolocation.watchPosition(pos => {
-                document.getElementById('coords').textContent = pos.coords.latitude.toFixed(3);
-                document.getElementById('acc').textContent = Math.round(pos.coords.accuracy) + 'm';
         function createWaypoint(id, lat, lng) {
             if (waypoints.some(w => w.id === id)) return;
             let layerInstance;
@@ -797,8 +744,7 @@
                 `);
             });
         }
-    </script>
-<
+
         function saveWaypoints() {
             try {
                 const data = waypoints.map(w => ({ id: w.id, lat: w.lat, lng: w.lng }));
@@ -871,4 +817,229 @@
             currentHeading += diff * 0.22;
             currentHeading = (currentHeading + 360) % 360;
 
-            document.document
+            document.documentElement.style.setProperty('--arrow-rotation', `${Math.round(currentHeading)}deg`);
+
+            if(bearingEl) {
+                const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+                const idx = Math.round(((currentHeading % 360) / 45)) % 8;
+                bearingEl.textContent = `${String(Math.round(currentHeading)).padStart(3, '0')}° ${dirs[idx]}`;
+            }
+            requestAnimationFrame(runEngineLoop);
+        }
+        requestAnimationFrame(runEngineLoop);
+
+        function handleOrientation(e) {
+            let heading = e.webkitCompassHeading ?? (e.alpha !== null ? 360 - e.alpha : null);
+            if (heading !== null && heading !== undefined) {
+                targetHeading = Math.round(heading);
+            }
+        }
+
+        function requestOrientationPermission() {
+            if (compassAttached) return;
+            if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            window.addEventListener('deviceorientation', handleOrientation, true);
+                            compassAttached = true;
+                        }
+                    }).catch(console.error);
+            } else if (window.DeviceOrientationEvent) {
+                window.addEventListener('deviceorientation', handleOrientation, true);
+                compassAttached = true;
+            }
+        }
+
+        function updateLocation(lat, lng, accuracy = null) {
+            if(coordsEl) coordsEl.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            if(accuracyEl) accuracyEl.textContent = accuracy ? `±${Math.round(accuracy)}m` : '---';
+
+            if (showTrail && (trailPoints.length === 0 || L.latLng(trailPoints[trailPoints.length - 1]).distanceTo([lat, lng]) > 1)) {
+                trailPoints.push([lat, lng]);
+                trailLine.setLatLngs(trailPoints);
+            }
+
+            if (!accuracyCircle) {
+                accuracyCircle = L.circle([lat, lng], { radius: accuracy || 15, color: arrowConfig.color, fillColor: arrowConfig.color, fillOpacity: arrowConfig.showRadius ? 0.06 : 0, opacity: arrowConfig.showRadius ? 1 : 0, weight: 1 }).addTo(map);
+            } else {
+                accuracyCircle.setLatLng([lat, lng]);
+                if (accuracy) accuracyCircle.setRadius(accuracy);
+            }
+
+            if (!userMarker) {
+                const icon = L.divIcon({
+                    className: 'user-marker-container',
+                    html: `<div class="user-marker"><div class="user-arrow"></div></div>`,
+                    iconSize: [28, 28], iconAnchor: [14, 14]
+                });
+                userMarker = L.marker([lat, lng], { icon }).addTo(map);
+            } else { userMarker.setLatLng([lat, lng]); }
+
+            if (isFirstLocation) { map.setView([lat, lng], 17); isFirstLocation = false; }
+        }
+
+        map.on('contextmenu', function(e) {
+            createWaypoint(Date.now().toString(), e.latlng.lat, e.latlng.lng);
+        });
+
+        const dropBtn = document.getElementById('drop-btn');
+        let isDragging = false;
+        let offsetX = 0, offsetY = 0;
+
+        function updateMagnifyingGlass(clientX, clientY) {
+            const mapContainer = map.getContainer();
+            const rect = mapContainer.getBoundingClientRect();
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+
+            if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+                magGlass.style.display = 'block';
+                magGlass.style.left = clientX + 'px';
+                magGlass.style.top = (clientY - 60) + 'px';
+
+                const latlng = map.containerPointToLatLng([x, y]);
+                const zoomedCenter = map.project(latlng, map.getZoom() + 2);
+                const tileSize = 256; const scale = 2;
+                const baseUrl = 'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
+                const url = baseUrl.replace('{z}', map.getZoom() + 2).replace('{x}', Math.floor(zoomedCenter.x / tileSize)).replace('{y}', Math.floor(zoomedCenter.y / tileSize));
+                zoomContent.style.backgroundImage = `url('${url}')`;
+                zoomContent.style.backgroundSize = `${tileSize * scale}px ${tileSize * scale}px`;
+                zoomContent.style.backgroundPosition = `-${(zoomedCenter.x % tileSize) * scale}px -${(zoomedCenter.y % tileSize) * scale}px`;
+            } else { magGlass.style.display = 'none'; }
+        }
+
+        dropBtn.addEventListener('mousedown', function(e) {
+            const rect = dropBtn.getBoundingClientRect();
+            offsetX = e.clientX - rect.left; offsetY = e.clientY - rect.top;
+            isDragging = true; dropBtn.style.cursor = 'grabbing'; dropBtn.style.opacity = '0.6';
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isDragging) return;
+            dropBtn.style.position = 'fixed'; dropBtn.style.left = (e.clientX - offsetX) + 'px'; dropBtn.style.top = (e.clientY - offsetY) + 'px';
+            dropBtn.style.bottom = 'auto'; dropBtn.style.right = 'auto';
+            updateMagnifyingGlass(e.clientX, e.clientY);
+        });
+
+        document.addEventListener('mouseup', function(e) {
+            if (!isDragging) return; isDragging = false;
+            dropBtn.style.cursor = 'grab'; dropBtn.style.opacity = '1'; magGlass.style.display = 'none';
+            const rect = map.getContainer().getBoundingClientRect();
+            const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+
+            if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+                const latlng = map.containerPointToLatLng([x, y]);
+                createWaypoint(Date.now().toString(), latlng.lat, latlng.lng);
+            }
+            dropBtn.style.left = ''; dropBtn.style.top = ''; dropBtn.style.position = 'fixed'; dropBtn.style.bottom = '40px'; dropBtn.style.right = '24px';
+        });
+
+        dropBtn.addEventListener('touchstart', function(e) {
+            const touch = e.touches[0];
+            const rect = dropBtn.getBoundingClientRect();
+            offsetX = touch.clientX - rect.left; offsetY = touch.clientY - rect.top;
+            isDragging = true; dropBtn.style.opacity = '0.6';
+        }, { passive: true });
+
+        document.addEventListener('touchmove', function(e) {
+            if (!isDragging) return; e.preventDefault();
+            const touch = e.touches[0];
+            dropBtn.style.position = 'fixed'; dropBtn.style.left = (touch.clientX - offsetX) + 'px'; dropBtn.style.top = (touch.clientY - offsetY) + 'px';
+            dropBtn.style.bottom = 'auto'; dropBtn.style.right = 'auto';
+            updateMagnifyingGlass(touch.clientX, touch.clientY);
+        }, { passive: false });
+
+        document.addEventListener('touchend', function(e) {
+            if (!isDragging) return; isDragging = false;
+            dropBtn.style.opacity = '1'; magGlass.style.display = 'none';
+            const touch = e.changedTouches[0];
+            const mapContainer = map.getContainer();
+            const rect = mapContainer.getBoundingClientRect();
+            const x = touch.clientX - rect.left; const y = touch.clientY - rect.top;
+
+            if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+                const latlng = map.containerPointToLatLng([x, y]);
+                createWaypoint(Date.now().toString(), latlng.lat, latlng.lng);
+            }
+            dropBtn.style.left = ''; dropBtn.style.top = ''; dropBtn.style.position = 'fixed'; dropBtn.style.bottom = '40px'; dropBtn.style.right = '24px';
+        }, { passive: true });
+
+        loadSettings();
+        applyStoredSettingsToDOM();
+        loadWaypoints();
+
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(
+                pos => updateLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
+                err => {}, { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+            );
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar-panel');
+            const trigger = document.getElementById('menu-btn');
+            if(sidebar && trigger) {
+                sidebar.classList.toggle('open');
+                trigger.classList.toggle('open');
+                if (!sidebar.classList.contains('open')) navigateToSettings(false);
+            }
+        }
+
+        function toggleOption(type) {
+            const btn = document.getElementById(`opt-${type}`);
+            if (type === 'hud') {
+                showHUD = !showHUD;
+                if(hudEl) hudEl.style.opacity = showHUD ? '1' : '0';
+                if(btn) btn.classList.toggle('active', showHUD);
+            } else if (type === 'trail') {
+                showTrail = !showTrail;
+                if (showTrail) { trailLine.setLatLngs(trailPoints); } else { trailLine.setLatLngs([]); }
+                if(btn) btn.classList.toggle('active', showTrail);
+            }
+            saveSettings();
+        }
+
+        function clearTrail() { trailPoints = []; trailLine.setLatLngs([]); }
+
+        function clearWaypoints() {
+            const btn = document.getElementById('btn-clear-waypoints');
+            if(!btn) return;
+            if (btn.classList.contains('danger-confirm')) {
+                clearTimeout(clearWaypointsTimeout);
+                waypoints.forEach(w => map.removeLayer(w.layerInstance));
+                waypoints = []; saveWaypoints();
+                btn.classList.remove('danger-confirm');
+                btn.querySelector('span:first-child').textContent = 'Clear Waypoints';
+                btn.querySelector('.badge').textContent = '✕';
+            } else {
+                btn.classList.add('danger-confirm');
+                btn.querySelector('span:first-child').textContent = 'Are you sure?';
+                btn.querySelector('.badge').textContent = '●';
+                clearWaypointsTimeout = setTimeout(() => {
+                    btn.classList.remove('danger-confirm');
+                    btn.querySelector('span:first-child').textContent = 'Clear Waypoints';
+                    btn.querySelector('.badge').textContent = '✕';
+                }, 3000);
+            }
+        }
+
+        function centerMap() {
+            requestOrientationPermission();
+            if (userMarker) map.setView(userMarker.getLatLng());
+        }
+
+        window.toggleSidebar = toggleSidebar;
+        window.toggleOption = toggleOption;
+        window.clearTrail = clearTrail;
+        window.clearWaypoints = clearWaypoints;
+        window.centerMap = centerMap;
+        window.navigateToSettings = navigateToSettings;
+        window.setMarkerStyle = setMarkerStyle;
+        window.updatePinConfigs = updatePinConfigs;
+        window.updateCircleConfigs = updateCircleConfigs;
+        window.updateArrowConfigs = updateArrowConfigs;
+        window.requestOrientationPermission = requestOrientationPermission;
+    </script>
+</body>
+</html>
