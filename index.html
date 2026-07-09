@@ -628,7 +628,7 @@
             zoomControl: false, center: [11.56494, 104.91438], zoom: 16, layers: [pureGridLayer]
         });
 
-        // Layer selection controller panel
+        // to get layer when you click on it
         L.control.layers({ 
             "Grid Map": pureGridLayer, 
             "Blank Map": blankVoidLayer,
@@ -709,7 +709,14 @@
                 const dBtnIcon = document.getElementById('drop-btn-icon'); if(dBtnIcon) dBtnIcon.textContent = markerType === 'pin' ? '📍' : '🔵';
             } catch(e) {}
         }
-
+// this is for the size changer for hud thing 
+        function =  updateHudSize() {
+            const slider = "hud-size-slider";
+            const scale = scale.value / 100;
+            document.querySelector(.hud).style.transform = 'translateX scale(${scale})';
+            localStorage.setItem("hud_size", "slider.value");
+            }
+        }
         function createWaypoint(id, lat, lng) {
             if (waypoints.some(w => w.id === id)) return;
             let layerInstance;
