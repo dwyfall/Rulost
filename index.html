@@ -722,16 +722,19 @@
             localStorage.setItem("hud_size", slider.value);
         }
 // this is for the hud size to show up or save idk
-        function loadHudSize() {
-            const saved= localStorage.getItem("hud_size");
-            const slider = document.getElementById('hud-size-slider');
-        if (saved) {
-            slider.value = saved;
-            const scale = saved / 100;
-            document.querySelector(".hud").style.transform = `translateX(-50%) scale(${scale})`;
-        } else {
-             document.querySelector(".hud").style.transform = `translateX(-50%) scale(1)`;
-        }
+       function loadHudSize() {
+    const saved = localStorage.getItem("hud_size");
+    const slider = document.getElementById('hud-size-slider');
+    if (saved && saved > 0 && saved <= 150) {
+        slider.value = saved;
+        const scale = saved / 100;
+        document.querySelector(".hud").style.transform = `translateX(-50%) scale(${scale})`;
+    } else {
+        // Default: normal size
+        document.querySelector(".hud").style.transform = `translateX(-50%) scale(1)`;
+        // Optionally reset slider to 100 if saved value is invalid
+        if (slider) slider.value = 100;
+    }
 }
         
         function createWaypoint(id, lat, lng) {
