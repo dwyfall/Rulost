@@ -725,12 +725,13 @@
         function loadHudSize() {
             const saved= localStorage.getItem("hud_size");
             const slider = document.getElementById('hud-size-slider');
+        if (saved) {
             slider.value = saved;
             const scale = saved / 100;
             document.querySelector(".hud").style.transform = `translateX(-50%) scale(${scale})`;
         } else {
              document.querySelector(".hud").style.transform = `translateX(-50%) scale(1)`;
-    }
+        }
 }
         
         function createWaypoint(id, lat, lng) {
