@@ -710,10 +710,10 @@
             } catch(e) {}
         }
 // this is for the size changer for hud thing 
-        function =  updateHudSize() {
-            const slider = "hud-size-slider";
+        function updateHudSize() {
+            const slider = document.getElementId"hud-size-slider";
             const scale = scale.value / 100;
-            document.querySelector(.hud).style.transform = 'translateX scale(${scale})';
+            document.querySelector(".hud").style.transform = `translateX scale(${scale})`;
             localStorage.setItem("hud_size", "slider.value");
             }
         }
