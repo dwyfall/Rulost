@@ -719,7 +719,9 @@
 // this is for the hud size to show up or save idk
         function loadHudSize() {
             const saved= localStorage.getItem("hud_size");
-            slider.value = saved / 100
+            const slider = document.getElementById('hud-size-slider');
+            slider.value = saved;
+            const scale = saved / 100;
             document.querySelector(".hud").style.transform = `translateX(-50%) scale(${scale})`;
         }
         function createWaypoint(id, lat, lng) {
@@ -996,6 +998,7 @@
 
         loadSettings();
         applyStoredSettingsToDOM();
+        loadHudSize();
         loadWaypoints();
 
         if (navigator.geolocation) {
